@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { getChunks, getRandomChunk, type ChunkResponse } from "./api";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DATA
@@ -13,148 +14,7 @@ const CATEGORIES = [
   { id: "random",    emoji: "🎲", label: "Random",     color: "#FF9600", bg: "#2A1A00" },
 ];
 
-const CHUNKS = [
-  {
-    id: 1, phrase: "Out of the blue",
-    translation: "突然间；出乎意料地",
-    pinyin: "Tūrán jiān; chū hū yìliào de",
-    category: "random",
-    examples: [
-      "He called me out of the blue after five years.",
-      "Out of the blue, she decided to quit her high-paying job.",
-    ],
-    blank: "She received a job offer ___ last Monday.",
-    options: ["out of the blue", "by the way", "in a rush"],
-    answer: "out of the blue",
-    needsReview: false, mastered: false,
-  },
-  {
-    id: 2, phrase: "Touch base",
-    translation: "联络；简短沟通一下",
-    pinyin: "Liánluò; jiǎnduǎn gōutōng yīxià",
-    category: "workplace",
-    examples: [
-      "Let's touch base next Monday to review the project timeline.",
-      "I wanted to touch base before the client meeting tomorrow.",
-    ],
-    blank: "Can we ___ tomorrow morning about the launch?",
-    options: ["touch base", "wind down", "pull through"],
-    answer: "touch base",
-    needsReview: true, mastered: false,
-  },
-  {
-    id: 3, phrase: "Break the ice",
-    translation: "打破僵局；活跃气氛",
-    pinyin: "Dǎpò jiāngjú; huóyuè qìfēn",
-    category: "smalltalk",
-    examples: [
-      "He told a funny joke to break the ice at the networking event.",
-      "A shared laugh always helps break the ice with strangers.",
-    ],
-    blank: "She shared a funny story to ___ with the new teammates.",
-    options: ["break the ice", "call it a day", "get carried away"],
-    answer: "break the ice",
-    needsReview: false, mastered: true,
-  },
-  {
-    id: 4, phrase: "In the long run",
-    translation: "从长远来看；最终",
-    pinyin: "Cóng chángyuǎn lái kàn; zuìzhōng",
-    category: "workplace",
-    examples: [
-      "Investing in your health pays off in the long run.",
-      "These small daily habits will benefit you in the long run.",
-    ],
-    blank: "Saving money consistently will help you ___ .",
-    options: ["in the long run", "on the fly", "out of hand"],
-    answer: "in the long run",
-    needsReview: true, mastered: false,
-  },
-  {
-    id: 5, phrase: "Hit the road",
-    translation: "出发；踏上旅途",
-    pinyin: "Chūfā; tà shàng lǚtú",
-    category: "travel",
-    examples: [
-      "We need to hit the road by 6 AM to beat the traffic.",
-      "It's getting dark — let's hit the road before it's too late.",
-    ],
-    blank: "We should ___ early to catch the sunrise at the peak.",
-    options: ["hit the road", "go overboard", "lose track"],
-    answer: "hit the road",
-    needsReview: false, mastered: false,
-  },
-  {
-    id: 6, phrase: "Get cold feet",
-    translation: "临阵退缩；突然紧张",
-    pinyin: "Línzhèn tuìsuō; tūrán jǐnzhāng",
-    category: "emotions",
-    examples: [
-      "He got cold feet just minutes before the wedding ceremony.",
-      "Don't get cold feet now — you've prepared for this moment!",
-    ],
-    blank: "She ___ right before stepping onto the stage.",
-    options: ["got cold feet", "kept a straight face", "let it slide"],
-    answer: "got cold feet",
-    needsReview: true, mastered: false,
-  },
-  {
-    id: 7, phrase: "Under the weather",
-    translation: "身体不适；感觉欠佳",
-    pinyin: "Shēntǐ bùshì; gǎnjué qiànjiā",
-    category: "smalltalk",
-    examples: [
-      "I'm feeling a bit under the weather — I might skip the gym.",
-      "She's been under the weather all week with a bad cold.",
-    ],
-    blank: "He decided to rest at home because he was feeling ___ .",
-    options: ["under the weather", "over the moon", "in hot water"],
-    answer: "under the weather",
-    needsReview: false, mastered: true,
-  },
-  {
-    id: 8, phrase: "On the same page",
-    translation: "看法一致；达成共识",
-    pinyin: "Kànfǎ yīzhì; dáchéng gòngshí",
-    category: "workplace",
-    examples: [
-      "Let's have a quick sync to make sure we're all on the same page.",
-      "Good communication keeps the whole team on the same page.",
-    ],
-    blank: "Before the project kicks off, let's make sure we're ___ .",
-    options: ["on the same page", "off the hook", "under pressure"],
-    answer: "on the same page",
-    needsReview: true, mastered: false,
-  },
-  {
-    id: 9, phrase: "Bite the bullet",
-    translation: "咬牙硬撑；忍痛接受",
-    pinyin: "Yǎo yá yìng chēng; rěn tòng jiēshòu",
-    category: "emotions",
-    examples: [
-      "I bit the bullet and finally went to the dentist.",
-      "Sometimes you just have to bite the bullet and face the challenge.",
-    ],
-    blank: "She decided to ___ and take the difficult exam.",
-    options: ["bite the bullet", "spill the beans", "cut corners"],
-    answer: "bite the bullet",
-    needsReview: false, mastered: false,
-  },
-  {
-    id: 10, phrase: "Jet lag",
-    translation: "时差反应；飞行疲劳",
-    pinyin: "Shíchā fǎnyìng; fēixíng píláo",
-    category: "travel",
-    examples: [
-      "After the 14-hour flight, jet lag kept me awake till 3 AM.",
-      "Drinking lots of water helps reduce jet lag on long flights.",
-    ],
-    blank: "It took me three days to recover from the terrible ___ .",
-    options: ["jet lag", "road trip", "layover"],
-    answer: "jet lag",
-    needsReview: true, mastered: false,
-  },
-];
+const CHUNKS: Array<ChunkResponse & { needsReview: boolean; mastered: boolean }> = [];
 
 const WEEK_DATA = [
   { day: "M", done: true,  count: 7  },
@@ -709,17 +569,26 @@ function OptionBtn({
 
 function HomeScreen() {
   const [cat, setCat]       = useState("all");
-  const [chunk, setChunk]   = useState<ChunkType | null>(null);
+  const [chunk, setChunk]   = useState<ChunkResponse | null>(null);
   const [key, setKey]       = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const streak = 12;
   const done   = 8;
   const goal   = 12;
 
-  function draw() {
-    const pool = cat === "all" ? CHUNKS : CHUNKS.filter(c => c.category === cat);
-    const next = pool[Math.floor(Math.random() * pool.length)];
-    setChunk(next);
-    setKey(k => k + 1);
+  async function draw() {
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await getRandomChunk(cat);
+      setChunk(next);
+      setKey(k => k + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load chunk');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -762,8 +631,9 @@ function HomeScreen() {
 
       {/* ── Main ── */}
       <div style={{ flex: 1, padding: "0 20px 28px", display: "flex", flexDirection: "column", gap: 12 }}>
+        {error && <div style={{ color: C.red, fontWeight: 800, fontSize: 13 }}>{error}</div>}
         {!chunk ? (
-          <EmptyState onDraw={draw} done={done} goal={goal} />
+          <EmptyState onDraw={draw} done={done} goal={goal} loading={loading} />
         ) : (
           <ChunkCard key={key} chunk={chunk} onNext={draw} />
         )}
@@ -776,7 +646,7 @@ function HomeScreen() {
 // EMPTY STATE (home before first draw)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function EmptyState({ onDraw, done, goal }: { onDraw: () => void; done: number; goal: number }) {
+function EmptyState({ onDraw, done, goal, loading }: { onDraw: () => void; done: number; goal: number; loading: boolean }) {
   return (
     <>
       {/* Hero draw area */}
@@ -788,7 +658,7 @@ function EmptyState({ onDraw, done, goal }: { onDraw: () => void; done: number; 
         <p style={{ color: C.gray, fontSize: 14, fontWeight: 600, margin: "0 0 24px", lineHeight: 1.6 }}>
           Draw a chunk, learn its meaning, and practise using it in context.
         </p>
-        <Btn label="Draw a Chunk" icon="✨" bg={C.green} shadow={C.greenDark} size="xl" full onClick={onDraw} />
+        <Btn label={loading ? "Loading..." : "Draw a Chunk"} icon="✨" bg={C.green} shadow={C.greenDark} size="xl" full onClick={onDraw} disabled={loading} />
       </Card>
 
       {/* Stats row */}
@@ -845,13 +715,32 @@ function EmptyState({ onDraw, done, goal }: { onDraw: () => void; done: number; 
 function LibraryScreen() {
   const [filter, setFilter]   = useState("all");
   const [search, setSearch]   = useState("");
-  const [expanded, setExpanded] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [chunks, setChunks] = useState<Array<ChunkResponse & { needsReview: boolean; mastered: boolean }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filtered = CHUNKS
-    .filter(c => filter === "all" || c.category === filter)
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getChunks(filter === 'all' ? undefined : filter);
+        setChunks(data.map((item) => ({ ...item, needsReview: false, mastered: false })));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load chunks');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    load();
+  }, [filter]);
+
+  const filtered = chunks
     .filter(c => !search || c.phrase.toLowerCase().includes(search.toLowerCase()));
 
-  const reviewCount = CHUNKS.filter(c => c.needsReview).length;
+  const reviewCount = chunks.filter(c => c.needsReview).length;
 
   return (
     <div style={{ height: "100%", overflowY: "auto", display: "flex", flexDirection: "column" }}>
@@ -861,7 +750,7 @@ function LibraryScreen() {
           <div>
             <h2 style={{ color: C.white, fontWeight: 900, fontSize: 22, margin: 0 }}>My Chunks</h2>
             <p style={{ color: C.gray, fontSize: 12, fontWeight: 700, margin: "3px 0 0" }}>
-              {CHUNKS.length} collected · {CHUNKS.filter(c => c.mastered).length} mastered
+              {chunks.length} collected · {chunks.filter(c => c.mastered).length} mastered
             </p>
           </div>
           {reviewCount > 0 && (
@@ -936,7 +825,8 @@ function LibraryScreen() {
 
       {/* Chunk list */}
       <div style={{ padding: "0 16px 28px", display: "flex", flexDirection: "column", gap: 8 }}>
-        {filtered.length === 0 ? (
+        {error && <div style={{ color: C.red, fontWeight: 800, fontSize: 13, marginBottom: 10 }}>{error}</div>}
+        {loading ? <div style={{ color: C.gray, fontWeight: 700 }}>Loading chunks...</div> : filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 20px" }}>
             <div style={{ fontSize: 40, marginBottom: 10 }}>🔍</div>
             <div style={{ color: C.gray, fontWeight: 700, fontSize: 14 }}>No chunks found</div>

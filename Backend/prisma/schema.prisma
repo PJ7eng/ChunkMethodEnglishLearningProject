@@ -1,0 +1,143 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               String            @id @default(uuid())
+  email            String            @unique
+  passwordHash     String
+  name             String?
+  createdAt        DateTime          @default(now())
+  preferences      UserPreference?
+  learningProgress LearningProgress[]
+  dailyProgress    DailyProgress[]
+}
+
+model UserPreference {
+  id              String  @id @default(uuid())
+  userId          String  @unique
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyGoal       Int     @default(10)
+  soundEnabled    Boolean @default(true)
+  reminderEnabled Boolean @default(false)
+  hapticEnabled   Boolean @default(true)
+  autoNextEnabled Boolean @default(true)
+}
+
+enum ContentStatus {
+  draft
+  generating
+  pending_review
+  published
+  retired
+}
+
+model ContentPoolItem {
+  id           String         @id @default(uuid())
+  category     String
+  difficulty   String
+  status       ContentStatus  @default(draft)
+  qualityScore Float          @default(0.0)
+  usageCount   Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  chunks       Chunk[]
+  quizzes      QuizQuestion[]
+}
+
+model Chunk {
+  id                String            @id @default(uuid())
+  contentPoolItemId String
+  contentPoolItem   ContentPoolItem   @relation(fields: [contentPoolItemId], references: [id], onDelete: Cascade)
+  phrase            String            @unique
+  translation       String
+  pinyin            String?
+  category          String
+  difficulty        String
+  blank             String
+  answer            String
+  options           Json
+  status            String            @default("active")
+  examples          ChunkExample[]
+  quizOptions       QuizOption[]
+  learningProgress  LearningProgress[]
+}
+
+model ChunkExample {
+  id       String @id @default(uuid())
+  chunkId  String
+  chunk    Chunk  @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+  sentence String
+}
+
+model QuizQuestion {
+  id                  String          @id @default(uuid())
+  contentPoolItemId   String
+  contentPoolItem     ContentPoolItem @relation(fields: [contentPoolItemId], references: [id], onDelete: Cascade)
+  prompt              String
+  correctAnswerChunkId String
+  difficulty          String
+  status              String          @default("active")
+  options             QuizOption[]
+}
+
+model QuizOption {
+  id             String       @id @default(uuid())
+  quizQuestionId String
+  quizQuestion   QuizQuestion @relation(fields: [quizQuestionId], references: [id], onDelete: Cascade)
+  chunkId        String
+  chunk          Chunk        @relation(fields: [chunkId], references: [id])
+  isCorrect      Boolean
+  orderIndex     Int
+}
+
+model LearningProgress {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chunkId        String
+  chunk          Chunk     @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+  mastered       Boolean   @default(false)
+  needsReview    Boolean   @default(false)
+  lastReviewedAt DateTime?
+  reviewCount    Int       @default(0)
+  answerCount    Int       @default(0)
+  masteryScore   Float     @default(0.0)
+
+  @@unique([userId, chunkId])
+}
+
+model DailyProgress {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date           DateTime @default(now())
+  completedCount Int      @default(0)
+  goal           Int
+  streakDay      Int      @default(0)
+
+  @@unique([userId, date])
+}
+
+enum JobStatus {
+  pending
+  running
+  success
+  failed
+}
+
+model GenerationJob {
+  id            String    @id @default(uuid())
+  jobType       String
+  status        JobStatus @default(pending)
+  batchSize     Int
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+  errorMessage  String?
+  triggerReason String
+}
