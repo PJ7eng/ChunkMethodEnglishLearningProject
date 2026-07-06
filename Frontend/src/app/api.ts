@@ -65,10 +65,25 @@ export async function getCurrentUser(token: string) {
 
 export async function getChunks(category?: string) {
   const query = category && category !== 'all' ? `?category=${encodeURIComponent(category)}` : '';
+  console.log('Fetching chunks with category: %s', category);
   return request<ChunkResponse[]>(`/chunks${query}`);
 }
 
 export async function getRandomChunk(category?: string) {
   const query = category && category !== 'all' ? `?category=${encodeURIComponent(category)}` : '';
+  console.log('Fetching random chunk with category: %s', category);
   return request<ChunkResponse>(`/chunks/random${query}`);
+}
+
+export interface ProgressResponse {
+  mastered: boolean;
+  answerCount: number;
+  reviewCount: number;
+}
+
+export async function recordProgressAnswer(userId: string, chunkId: string, isCorrect: boolean, date?: string) {
+  return request<ProgressResponse>('/progress/answer', {
+    method: 'POST',
+    body: JSON.stringify({ userId, chunkId, isCorrect, date }),
+  });
 }

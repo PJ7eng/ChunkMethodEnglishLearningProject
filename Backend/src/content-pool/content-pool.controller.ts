@@ -20,11 +20,13 @@ export class ContentPoolController {
 
   @Get()
   async getChunks(@Query('category') category?: string): Promise<ChunkResponse[]> {
+    console.log('Fetching chunks with category: %s', category);
     return this.contentPoolService.getChunks(category);
   }
 
   @Get('random')
   async getRandomChunk(@Query('category') category?: string): Promise<ChunkResponse> {
+    console.log('Fetching random chunk with category: %s', category);
     return this.contentPoolService.getRandomChunk(category);
   }
 }
