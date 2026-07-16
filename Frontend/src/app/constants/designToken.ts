@@ -1,0 +1,17 @@
+export const C = {
+  bg:       "#121212",
+  surface:  "#2A2A2E",
+  surface2: "#1E1E22",
+  surface3: "#3A3A3E",
+  green:    "#58CC02",
+  greenDark:"#3D8F00",
+  blue:     "#1CB0F6",
+  blueDark: "#0A7AB0",
+  purple:   "#CE82FF",
+  purpleDk: "#8A40CC",
+  orange:   "#FF9600",
+  red:      "#FF4B4B",
+  white:    "#FFFFFF",
+  gray:     "#A1A1AA",
+  dim:      "#1A1A1E",
+};
