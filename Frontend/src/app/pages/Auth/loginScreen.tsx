@@ -64,7 +64,8 @@ export function LoginScreen({
           onChange={(e) => setEmail(e.target.value)}
         />
         <Input 
-          type="password" 
+          type="password"
+          passwordToggle
           placeholder="輸入密碼" 
           label="密碼"
           value={password}

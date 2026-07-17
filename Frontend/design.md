@@ -1,396 +1,589 @@
-好的！基于你的 `designToken.ts` 和所有组件文件，我为你整理出完整的设计规范文档。
+# ChunkLearning Frontend — Design & Development Guide
+
+This document describes the current UI design system, project structure, and coding conventions for the ChunkLearning frontend. It reflects the codebase as it exists today and is intended to help contributors maintain consistency when extending the app.
+
+**Stack:** React 18 · Vite 6 · TypeScript · Tailwind CSS v4  
+**Design origin:** [English Learning App UI (Figma)](https://www.figma.com/design/B2xh6Lq3BcHCmQCPyKI9bO/English-Learning-App-UI)
 
 ---
 
-# 🎨 ChunkMaster 设计系统规范
+## Table of Contents
 
-## 一、配色系统（Color System）
-
-### 1.1 品牌主色
-
-| 颜色名称 | 色值 | 用途 | 使用场景 |
-|---------|------|------|----------|
-| **Green** | `#58CC02` | 主要品牌色 | 主按钮、成功状态、进度条、激活指示器 |
-| **Green Dark** | `#3D8F00` | 主色阴影 | 按钮阴影、按压状态 |
-| **Blue** | `#1CB0F6` | 辅助品牌色 | 信息提示、示例边框、链接 |
-| **Blue Dark** | `#0A7AB0` | 辅助色阴影 | 次要按钮阴影 |
-| **Purple** | `#CE82FF` | 强调品牌色 | 特殊按钮、标签、分类标识 |
-| **Purple Dark** | `#8A40CC` | 强调色阴影 | 紫色按钮阴影 |
-
-### 1.2 功能色
-
-| 颜色名称 | 色值 | 用途 |
-|---------|------|------|
-| **Orange** | `#FF9600` | 警告、提示、Streak 火焰 |
-| **Red** | `#FF4B4B` | 错误状态、需要复习的标记 |
-
-### 1.3 背景色（Background）
-
-| 层级 | 色值 | 用途 |
-|------|------|------|
-| **Primary BG** | `#121212` | 全局主背景（`C.bg`） |
-| **Surface 1** | `#2A2A2E` | 卡片背景、容器背景（`C.surface`） |
-| **Surface 2** | `#1E1E22` | TabBar 背景、次级容器（`C.surface2`） |
-| **Surface 3** | `#3A3A3E` | 按钮背景、输入框背景（`C.surface3`） |
-| **Dim** | `#1A1A1E` | 阴影色、分隔线（`C.dim`） |
-
-### 1.4 文字色（Text）
-
-| 颜色名称 | 色值 | 用途 |
-|---------|------|------|
-| **White** | `#FFFFFF` | 主标题、重要文字 |
-| **Gray** | `#A1A1AA` | 次要文字、辅助说明、占位符 |
+1. [UI Design](#1-ui-design)
+2. [Project Structure](#2-project-structure)
+3. [Code Conventions](#3-code-conventions)
+4. [Architecture & Data Flow](#4-architecture--data-flow)
+5. [Maintenance Notes](#5-maintenance-notes)
 
 ---
 
-## 二、字体系统（Typography）
+## 1. UI Design
 
-### 2.1 字体家族
+### 1.1 Design Language
 
-```css
-font-family: 'Nunito', sans-serif;
-```
-- **权重范围**：400（常规）、600（半粗）、700（粗体）、800（特粗）、900（黑色）
+The app uses a **Duolingo-inspired dark theme** with a playful, game-like visual language:
 
-### 2.2 字号与字重规范
+- Dark backgrounds with elevated surfaces
+- Bold, rounded typography (Nunito, weight 800–900)
+- **3D pressable elements** — buttons and cards use bottom box-shadows that collapse on press
+- Emoji icons for navigation and category labels
+- Bouncy easing (`cubic-bezier(.34, 1.56, .64, 1)`) for entrances and progress animations
 
-| 层级 | 字号 | 字重 | 行高 | 使用场景 |
-|------|------|------|------|----------|
-| **H1** | 22px | 900 | 1.2 | 页面标题（如 "My Chunks"、"Settings"） |
-| **H2** | 20px | 900 | 1.2 | App 品牌名称 |
-| **H3** | 15px | 700 | 1.75 | 段落正文、卡片内描述 |
-| **Body Large** | 14px | 700-800 | 1.6 | 按钮文字、列表项 |
-| **Body** | 13px | 600-700 | 1.6 | 辅助文字、示例句子 |
-| **Label** | 10-11px | 800-900 | 1.2 | 标签、分类标题、统计数字 |
-| **Caption** | 9px | 800 | 1.2 | 极小的辅助信息 |
+The authenticated app shell is a **mobile-first, single-column layout** with a fixed header, scrollable content area, and bottom tab bar (68px).
 
-### 2.3 特殊字体样式
+### 1.2 Color Scheme
 
-| 样式 | 属性 | 使用场景 |
-|------|------|----------|
-| **渐变文字** | `background: linear-gradient(135deg, color1, color2);`<br>`-webkit-background-clip: text;`<br>`-webkit-text-fill-color: transparent;` | 主标题、数字强调（如 Goal 数字） |
-| **大写字母** | `text-transform: uppercase;`<br>`letter-spacing: 0.12em;` | Label 组件、统计标签 |
-| **短语大字** | 30px / 900 / 1.2 | ChunkCard 中的目标短语 |
+#### Primary design tokens (`C`)
 
----
+All active UI components reference the `C` object in `src/app/constants/designToken.ts`. **Always use these tokens** instead of hard-coded hex values when building new UI.
 
-## 三、间距系统（Spacing）
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `bg` | `#121212` | Page background |
+| `surface` | `#2A2A2E` | Cards, inputs, inactive pills |
+| `surface2` | `#1E1E22` | Tab bar, secondary surfaces |
+| `surface3` | `#3A3A3E` | Progress track, toggle off, option buttons |
+| `green` | `#58CC02` | Primary CTA, success, active indicators |
+| `greenDark` | `#3D8F00` | Green button/toggle shadow depth |
+| `blue` | `#1CB0F6` | Secondary accent, hints |
+| `blueDark` | `#0A7AB0` | Blue button shadow |
+| `purple` | `#CE82FF` | Accent, input focus ring |
+| `purpleDk` | `#8A40CC` | Purple button shadow |
+| `orange` | `#FF9600` | Streak badges, labels |
+| `red` | `#FF4B4B` | Errors, wrong answers |
+| `white` | `#FFFFFF` | Primary text on dark surfaces |
+| `gray` | `#A1A1AA` | Muted text, placeholders, inactive labels |
+| `dim` | `#1A1A1E` | Card/button shadow color |
 
-### 3.1 内边距（Padding）
-
-| 层级 | 数值 | 使用场景 |
-|------|------|----------|
-| **XS** | 4px 10px | 分类标签内边距 |
-| **SM** | 6px 12px / 7px 12px | 小按钮、Streak 标签 |
-| **MD** | 10px 14px / 13px 16px | 输入框、标准按钮 |
-| **LG** | 13px 22px | 大按钮 |
-| **XL** | 17px 28px | 超大按钮 |
-| **Card** | 20px | 卡片内边距 |
-
-### 3.2 外边距（Margin）
-
-| 层级 | 数值 | 使用场景 |
-|------|------|----------|
-| **XS** | 8px | 组件内小间距 |
-| **SM** | 10px | 行内元素间距 |
-| **MD** | 12px | 模块间距 |
-| **LG** | 14-16px | 区块间距 |
-| **XL** | 20-28px | 页面边距、大区块间距 |
-
-### 3.3 常用间距组合
-
-```
-页面水平边距：20px
-卡片间距：12px
-组件内间距：8-12px
-列表项间距：8px
-图标与文字间距：5-10px
+```typescript
+import { C } from "../constants/designToken";
 ```
 
----
+#### Category colors
 
-## 四、组件样式规范（Component Styles）
+Defined in `src/app/constants/categories.ts` for filter pills and chunk labels:
 
-### 4.1 按钮（Button）
+| Category | Text | Background |
+|----------|------|------------|
+| All | `#A1A1AA` | `#2A2A2E` |
+| Workplace | `#1CB0F6` | `#0D2233` |
+| Small Talk | `#58CC02` | `#0D2210` |
+| Travel | `#CE82FF` | `#22123A` |
+| Emotions | `#FF4B4B` | `#2A0D0D` |
+| Random | `#FF9600` | `#2A1A00` |
 
-| 属性 | 值 |
-|------|-----|
-| **圆角** | `16px` |
-| **字体** | Nunito, 900 |
-| **默认阴影** | `0 5px 0 {shadowColor}` |
-| **按压状态** | `transform: translateY(5px); box-shadow: none;` |
-| **禁用状态** | `opacity: 0.45; cursor: not-allowed;` |
+#### Gradients
 
-**按钮尺寸：**
+| Element | Value |
+|---------|-------|
+| App logo icon | `linear-gradient(135deg, #58CC02, #89E219)` |
+| User avatar | `linear-gradient(135deg, #CE82FF, #1CB0F6)` |
+| Progress bar fill | `linear-gradient(90deg, {color}, {color}CC)` |
 
-| 尺寸 | 字号 | 内边距 |
-|------|------|--------|
-| XS | 11px | 6px 12px |
-| SM | 13px | 9px 18px |
-| MD | 15px | 13px 22px |
-| LG | 18px | 17px 28px |
-| XL | 21px | 20px 0 |
+#### CSS variables (Tailwind layer)
 
-**颜色变体：**
+`src/styles/theme.css` mirrors the same palette as CSS custom properties for Tailwind utilities (`bg-background`, `text-primary`, etc.). These are configured globally but **most components currently use inline styles with `C` tokens** instead of Tailwind classes.
 
-| 变体 | 背景色 | 阴影色 | 文字色 |
-|------|--------|--------|--------|
-| Primary | `C.green` | `C.greenDark` | `C.white` |
-| Secondary | `C.purple` | `C.purpleDk` | `C.white` |
-| Ghost | `C.surface` | `C.dim` | `C.gray` |
+Key CSS variables:
 
----
+| Variable | Value |
+|----------|-------|
+| `--background` | `#121212` |
+| `--foreground` | `#ffffff` |
+| `--primary` | `#58CC02` |
+| `--secondary` | `#1CB0F6` |
+| `--accent` | `#CE82FF` |
+| `--destructive` | `#FF4B4B` |
+| `--muted-foreground` | `#A1A1AA` |
+| `--border` | `rgba(255, 255, 255, 0.08)` |
+| `--radius` | `1rem` (16px) |
 
-### 4.2 卡片（Card）
+### 1.3 Typography
 
-| 属性 | 值 |
-|------|-----|
-| **背景色** | `C.surface` |
-| **圆角** | `20px` |
-| **内边距** | `20px` |
-| **阴影** | `0 6px 0 ${C.dim}` |
+| Property | Value |
+|----------|-------|
+| **Font family** | `'Nunito', sans-serif` |
+| **Source** | Google Fonts (`src/styles/fonts.css`) |
+| **Weights loaded** | 400, 600, 700, 800, 900 |
+| **Base size** | 16px (`--font-size` in theme.css) |
 
----
+#### Type scale (inline styles in use)
 
-### 4.3 开关（Toggle）
+| Role | Size | Weight | Notes |
+|------|------|--------|-------|
+| Page title (h1/h2) | 22px | 900 | Auth screens, section headers |
+| Brand name | 20px | 900 | "Chunk" (green) + "Master" (white) |
+| Body / button (md) | 15px | 800–900 | Default interactive text |
+| Input text | 15px | 600 | Form fields |
+| Input label | 13px | 700 | Gray, above inputs |
+| Pill label | 13px | 800 | Category filters |
+| Section label (uppercase) | 10–11px | 700–900 | `letterSpacing: 0.07–0.12em`, `textTransform: uppercase` |
+| Muted body | 12–14px | 600–700 | Secondary info, hints |
+| Button sizes | 11 / 13 / 15 / 18 / 21px | 900 | xs / sm / md / lg / xl |
 
-| 属性 | 值 |
-|------|-----|
-| **尺寸** | 56px × 30px |
-| **圆角** | 15px |
-| **滑块尺寸** | 22px × 22px |
-| **开启状态** | 背景 `C.green`，阴影 `C.greenDark` |
-| **关闭状态** | 背景 `C.surface3`，阴影 `C.dim` |
-| **过渡动画** | `0.22s cubic-bezier(.34,1.56,.64,1)` |
+### 1.4 Spacing
 
----
+The layout uses a consistent **20px horizontal page gutter**.
 
-### 4.4 TabBar（底部导航）
+| Pattern | Value |
+|---------|-------|
+| Page horizontal padding | `20px` |
+| App header | `36px 20px 12px` (top safe-area style inset) |
+| Section top/bottom | `14px 20px 10px` or `0 20px 28px` |
+| Card internal padding | `20px` (default), `32px 20px` (hero cards) |
+| Input padding | `14px` |
+| Pill padding | `7px 14px` |
+| Button padding (md) | `13px 22px` |
+| Flex gaps | 3, 4, 5, 6, 7, 8, 10, 12, 14px (context-dependent) |
+| Tab bar height | `68px` |
+| Input label gap | `8px` below label |
+| Form field spacing | `16px` margin-bottom per Input |
 
-| 属性 | 值 |
-|------|-----|
-| **高度** | 68px |
-| **背景** | `C.surface2` |
-| **顶部边框** | `1px solid rgba(255,255,255,0.07)` |
-| **阴影** | `0 -8px 28px rgba(0,0,0,0.55)` |
-| **激活指示器** | 宽40px，高3px，颜色 `C.green`，带发光效果 |
+### 1.5 Border Radius
 
----
+| Element | Radius |
+|---------|--------|
+| Buttons | 16px |
+| Cards | 20px |
+| Inputs | 14px |
+| Pills | 24px |
+| Option buttons (quiz) | 13px |
+| Toggle track | 15px |
+| Toggle thumb | 50% (circle) |
+| Progress bar | 10px |
+| Logo icon | 10px |
+| Avatar | 50% |
 
-### 4.5 进度条（ProgressBar）
+### 1.6 Component Styles
 
-| 属性 | 值 |
-|------|-----|
-| **高度** | 10px |
-| **圆角** | 10px |
-| **背景** | `C.surface3` |
-| **填充** | `linear-gradient(90deg, color, colorCC)` |
-| **发光** | `0 0 10px color66` |
+#### Interaction pattern — 3D press (`usePress`)
 
----
+Interactive buttons use the `usePress` hook for a tactile press effect:
 
-### 4.6 输入框（Search / Input）
+- **Resting:** `boxShadow: 0 5px 0 {shadowColor}`
+- **Pressed:** `transform: translateY(5px)`, shadow reduced to `0 0px 0`
+- **Transition:** `0.08s ease` (buttons), `0.15–0.35s` (cards/pills)
+- **Disabled:** `opacity: 0.45`, `cursor: not-allowed`
+- **Tap highlight:** `-webkit-tap-highlight-color: transparent`
 
-| 属性 | 值 |
-|------|-----|
-| **背景** | `C.surface` |
-| **圆角** | `14px` |
-| **内边距** | `10px 14px` |
-| **阴影** | `0 3px 0 ${C.dim}` |
-| **边框** | 激活时 `1.5px solid ${C.purple}88` |
-| **文字色** | `C.white` |
-| **占位符色** | `C.gray` |
+#### UI primitives (`src/app/components/ui/`)
 
----
+| Component | Description | Key styles |
+|-----------|-------------|------------|
+| **Button** | Primary game-style CTA | Green default, sizes xs–xl, optional icon, 16px radius, 3D shadow |
+| **LoginBtn** | Auth screen submit button | Variant of Button for login/register flows |
+| **OptionBtn** | Quiz answer choice | Full-width, state colors (default / correct green / wrong red) |
+| **StepBtn** | +/- stepper control | Compact square button for numeric settings |
+| **Card** | Content container | `C.surface`, 20px radius, `0 6px 0 C.dim` shadow, 20px padding |
+| **Input** | Labeled text field | Purple focus border, 14px radius, 3D bottom shadow |
+| **Pill** | Category filter chip | Active: category color border + tinted bg; inactive: gray on surface |
+| **ProgressBar** | Horizontal progress | 10px height, gradient fill, glow shadow |
+| **Toggle** | On/off switch | 56×30px track, green when on, bouncy thumb slide |
+| **Label** | Uppercase section tag | 10px, weight 900, colored, wide letter-spacing |
+| **XpDots** | XP indicator dots | Small circular progress markers |
+| **TabBar** | Bottom navigation | 3 tabs (Home, Library, Settings), green top indicator, emoji icons |
 
-### 4.7 标签（Label）
+#### Business components (`src/app/components/business/`)
 
-| 属性 | 值 |
-|------|-----|
-| **字号** | 10px |
-| **字重** | 900 |
-| **字母间距** | `0.12em` |
-| **大写** | `uppercase` |
-| **下边距** | 12px |
+| Component | Description |
+|-----------|-------------|
+| **ChunkCard** | Full learning card: phrase reveal, quiz options, feedback, next action |
+| **EmptyState** | Home screen placeholder before a chunk is drawn |
 
----
+#### Global layout (authenticated)
 
-### 4.8 分类标签（Pill）
-
-| 属性 | 值 |
-|------|-----|
-| **圆角** | 24px |
-| **内边距** | 7px 14px |
-| **字号** | 13px |
-| **字重** | 800 |
-| **激活状态** | 边框 2px 色值，背景 `cat.bg`，文字 `cat.color`，阴影 `0 4px 0 color33` |
-| **非激活状态** | 背景 `C.surface`，文字 `C.gray`，阴影 `0 3px 0 ${C.dim}` |
-
----
-
-### 4.9 步骤按钮（StepBtn）
-
-| 属性 | 值 |
-|------|-----|
-| **尺寸** | 48px × 48px |
-| **圆角** | 13px |
-| **背景** | `C.surface3` |
-| **阴影** | `0 4px 0 ${C.dim}` |
-| **按压状态** | `transform: translateY(4px); box-shadow: none;` |
-| **字号** | 24px |
-
----
-
-### 4.10 选项按钮（OptionBtn）
-
-| 属性 | 值 |
-|------|-----|
-| **圆角** | 13px |
-| **内边距** | 13px 16px |
-| **字号** | 14px |
-| **字重** | 800 |
-| **正确状态** | 背景 `#1A3A1A`，边框 `C.green`，文字 `C.green` |
-| **错误状态** | 背景 `#3A1A1A`，边框 `C.red`，文字 `C.red` |
-| **默认状态** | 背景 `C.surface3`，阴影 `0 3px 0 ${C.dim}` |
-
----
-
-## 五、阴影规范（Shadow）
-
-| 层级 | 值 | 使用场景 |
-|------|-----|----------|
-| **Light** | `0 3px 0 ${C.dim}` | 小按钮、标签、输入框 |
-| **Medium** | `0 4px 0 ${C.dim}` | 卡片、Toggle、步进按钮 |
-| **Heavy** | `0 6px 0 ${C.dim}` | 主卡片 |
-| **TabBar** | `0 -8px 28px rgba(0,0,0,0.55)` | 底部导航 |
-| **Glow** | `0 0 10px color66` | 进度条发光 |
-| **Button** | `0 5px 0 shadowColor` | 主按钮 |
-
----
-
-## 六、圆角规范（Border Radius）
-
-| 层级 | 值 | 使用场景 |
-|------|-----|----------|
-| **Small** | 6-10px | 小徽章、内联标签 |
-| **Medium** | 10-13px | 按钮、输入框、选项 |
-| **Large** | 14-16px | 卡片、大按钮、输入框 |
-| **X-Large** | 20px | 主卡片 |
-| **Full** | 50% | 头像、圆点 |
-
----
-
-## 七、动效规范（Animation）
-
-### 7.1 过渡时间
-
-| 速度 | 值 | 使用场景 |
-|------|-----|----------|
-| **Instant** | 0.08s | 按钮按压反馈 |
-| **Fast** | 0.15-0.2s | 分类标签切换、卡片展开 |
-| **Medium** | 0.22-0.3s | Toggle 切换、卡片出现 |
-| **Slow** | 0.4-0.5s | 进度条过渡 |
-
-### 7.2 缓动函数
-
-```css
-/* 默认使用 */
-transition: all 0.22s cubic-bezier(.34, 1.56, .64, 1);
-
-/* 按钮按压 */
-transition: transform 0.08s ease, box-shadow 0.08s ease;
+```
+┌─────────────────────────────┐
+│  Header (logo + avatar)     │  36px top padding
+├─────────────────────────────┤
+│                             │
+│  Active screen content      │  flex: 1, overflow-y: auto
+│  (Home / Library / Settings)│
+│                             │
+├─────────────────────────────┤
+│  TabBar                     │  68px fixed height
+└─────────────────────────────┘
 ```
 
-### 7.3 入场动画
+- Scrollbars are hidden globally in the authenticated view.
+- Auth screens (login/register) are full-page centered layouts without header or tab bar.
 
-```css
-@keyframes fadeSlideIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+---
+
+## 2. Project Structure
+
+```
+Frontend/
+├── index.html                  # HTML shell; title "English Learning App UI"
+├── package.json                # Dependencies and npm scripts (dev, build)
+├── package-lock.json           # npm lockfile
+├── pnpm-workspace.yaml         # pnpm monorepo workspace config
+├── vite.config.ts              # Vite + React + Tailwind; @ alias → src/
+├── postcss.config.mjs          # PostCSS config (Tailwind v4 handles most setup)
+├── default_shadcn_theme.css    # Reference shadcn theme (not actively used)
+├── design.md                   # This document
+├── README.md                   # Setup guide and development overview
+├── ATTRIBUTIONS.md             # Third-party licenses (shadcn/ui, Unsplash)
+├── .gitignore
+│
+├── guidelines/
+│   └── Guidelines.md           # AI/design guidelines template (placeholder)
+│
+└── src/
+    ├── main.tsx                # React entry point; mounts App, imports global CSS
+    │
+    ├── styles/                 # Global styles and theme
+    │   ├── index.css           # Entry: imports fonts, tailwind, theme
+    │   ├── fonts.css           # Nunito Google Font import
+    │   ├── tailwind.css        # Tailwind v4 entry (@import tailwindcss)
+    │   └── theme.css           # CSS variables, @theme inline, base typography
+    │
+    └── app/
+        ├── App.tsx             # Root component: auth gate, tab routing, header, TabBar
+        ├── api.ts              # fetch wrapper; auth, chunks, progress API functions
+        │
+        ├── components/
+        │   ├── index.ts        # Re-exports ui + business barrels
+        │   │
+        │   ├── ui/             # Reusable primitive UI components
+        │   │   ├── index.ts    # Barrel export for all UI components + types
+        │   │   ├── auth-screen.tsx   # Legacy shadcn auth (unused, broken imports)
+        │   │   ├── Button/
+        │   │   │   ├── button.tsx      # Primary game button
+        │   │   │   ├── loginBtn.tsx    # Auth submit button
+        │   │   │   ├── optionBtn.tsx   # Quiz option button
+        │   │   │   ├── stepBtn.tsx     # Stepper +/- button
+        │   │   │   └── index.ts
+        │   │   ├── Card/
+        │   │   │   ├── card.tsx
+        │   │   │   └── index.ts
+        │   │   ├── Input/
+        │   │   │   ├── input.tsx
+        │   │   │   └── index.ts
+        │   │   ├── Label/
+        │   │   │   ├── label.tsx
+        │   │   │   └── index.ts
+        │   │   ├── Pill/
+        │   │   │   ├── pill.tsx
+        │   │   │   └── index.ts
+        │   │   ├── ProgressBar/
+        │   │   │   ├── progressBar.tsx
+        │   │   │   └── index.ts
+        │   │   ├── TabBar/
+        │   │   │   ├── tabBar.tsx
+        │   │   │   └── index.ts
+        │   │   ├── Toggle/
+        │   │   │   ├── toggle.tsx
+        │   │   │   └── index.ts
+        │   │   └── XpDots/
+        │   │       ├── xpDots.tsx
+        │   │       └── index.ts
+        │   │
+        │   ├── business/       # Domain-specific composite components
+        │   │   ├── index.ts
+        │   │   ├── ChunkCard/
+        │   │   │   ├── chunkCard.tsx   # Learning card with quiz flow
+        │   │   │   └── index.ts
+        │   │   └── EmptyState/
+        │   │       ├── emptyState.tsx  # Home empty/draw prompt
+        │   │       └── index.ts
+        │   │
+        │   └── figma/
+        │       └── ImageWithFallback.tsx  # Figma asset helper with fallback
+        │
+        ├── pages/              # Screen-level components (one folder per route/tab)
+        │   ├── index.ts        # Barrel export for all screens
+        │   ├── Auth/
+        │   │   ├── loginScreen.tsx
+        │   │   ├── registerScreen.tsx
+        │   │   └── index.ts
+        │   ├── Home/
+        │   │   ├── homeScreen.tsx      # Daily progress, category filter, chunk draw
+        │   │   └── index.ts
+        │   ├── Library/
+        │   │   ├── libraryScreen.tsx   # Chunk list, search, filters
+        │   │   └── index.ts
+        │   └── Settings/
+        │       ├── settingsScreen.tsx  # Daily goal, reminders, preferences
+        │       └── index.ts
+        │
+        ├── hooks/
+        │   └── usePress.ts     # Mouse/touch press state for 3D button effect
+        │
+        ├── utils/
+        │   ├── array.ts        # shuffled() — randomize quiz options
+        │   └── category.ts     # getCategoryMeta() — lookup category by id
+        │
+        ├── constants/
+        │   ├── designToken.ts  # C color token object
+        │   ├── categories.ts   # CATEGORIES array + CategoryId type
+        │   └── weekData.ts     # WEEK_DATA for settings habit grid
+        │
+        └── types/
+            ├── auth.ts         # AuthScreenProps interface
+            └── chunk.ts        # Chunk type extensions
+```
+
+### Directory responsibilities
+
+| Directory | Responsibility |
+|-----------|----------------|
+| `src/styles/` | Global CSS: fonts, Tailwind setup, theme variables |
+| `src/app/components/ui/` | Generic, reusable UI primitives with no business logic |
+| `src/app/components/business/` | Feature-specific components that compose UI primitives |
+| `src/app/components/figma/` | Helpers for Figma-exported assets |
+| `src/app/pages/` | Full-screen views; own local state and data fetching |
+| `src/app/hooks/` | Shared React hooks |
+| `src/app/utils/` | Pure utility functions |
+| `src/app/constants/` | Static data and design tokens |
+| `src/app/types/` | Shared TypeScript interfaces and type aliases |
+
+---
+
+## 3. Code Conventions
+
+### 3.1 File & Folder Naming
+
+| Kind | Convention | Example |
+|------|------------|---------|
+| Component folders | PascalCase | `Button/`, `ChunkCard/` |
+| Component files | camelCase | `button.tsx`, `homeScreen.tsx` |
+| Screen files | `*Screen.tsx` suffix | `loginScreen.tsx`, `libraryScreen.tsx` |
+| Barrel exports | `index.ts` in each folder | `Button/index.ts`, `pages/index.ts` |
+| Constants | camelCase filename | `designToken.ts`, `weekData.ts` |
+| Hooks | `use` prefix | `usePress.ts` |
+| Utils | camelCase, verb-based | `array.ts`, `category.ts` |
+
+### 3.2 Component Patterns
+
+**Named function exports** (preferred):
+
+```typescript
+export function HomeScreen() { ... }
+export function Button({ label, ... }: ButtonProps) { ... }
+```
+
+**Props interfaces** are exported alongside components:
+
+```typescript
+export interface ButtonProps {
+  label: string;
+  bg?: string;
+  size?: "xs" | "sm" | "md" | "lg" | "xl";
+  onClick?: () => void;
 }
 ```
 
+Some older components use `export default interface` for props (`LabelProps`, `PillProps`, `XpDotsProps`). New components should use named `export interface`.
+
+**Styling:** Components use inline `style={{ ... }}` objects referencing `C` tokens:
+
+```typescript
+import { C } from "../../../constants/designToken";
+
+<div style={{ backgroundColor: C.surface, borderRadius: 20, padding: 20 }}>
+```
+
+**Style overrides:** Accept an optional `style?: React.CSSProperties` prop and spread it last:
+
+```typescript
+export function Card({ children, style }: CardProps) {
+  return (
+    <div style={{ backgroundColor: C.surface, borderRadius: 20, ...style }}>
+      {children}
+    </div>
+  );
+}
+```
+
+**Press interaction:**
+
+```typescript
+const { pressed, handlers } = usePress();
+
+<button
+  {...handlers}
+  style={{
+    boxShadow: `0 ${pressed ? 0 : 5}px 0 ${shadow}`,
+    transform: `translateY(${pressed ? 5 : 0}px)`,
+  }}
+/>
+```
+
+### 3.3 Import Conventions
+
+- **Relative paths** are used throughout (e.g. `../../components`, `../../../constants/designToken`).
+- **`@/` alias** is configured in `vite.config.ts` (`@` → `./src`) but is **not yet used** in source files. Prefer relative paths to match existing code until a migration is done.
+- **Barrel imports** from index files:
+
+```typescript
+import { Card, ProgressBar, Pill } from "../../components";
+import { HomeScreen, LibraryScreen } from "./pages";
+```
+
+- **Direct UI imports** within business components:
+
+```typescript
+import { Card, Label, OptionBtn, Button } from "../../ui";
+```
+
+### 3.4 TypeScript Usage
+
+| Pattern | Example |
+|---------|---------|
+| File extensions | `.tsx` for components, `.ts` for utils/types/api |
+| Props typing | `interface` or `extends React.InputHTMLAttributes<...>` |
+| API responses | Dedicated interfaces in `api.ts` (`ChunkResponse`, `AuthResponse`) |
+| Static data | `as const` arrays (`CATEGORIES`, `WEEK_DATA`) |
+| Union types | `"home" \| "library" \| "settings"`, button sizes |
+| Type exports | Re-exported from barrel `index.ts` files |
+
+Avoid `any` where possible. Current exceptions: `user: any` in auth state (`App.tsx`, `types/auth.ts`).
+
+### 3.5 State & Side Effects
+
+- **No React Router** — navigation is `useState<TabId>("home")` tab switching in `App.tsx`.
+- **Auth gate** — token and user stored in `localStorage` (`chunk_auth_token`, `chunk_auth_user`).
+- **Page-level state** — each screen manages its own `useState` / `useEffect` for data fetching.
+- **API calls** — centralized in `src/app/api.ts`; pages import and call these functions directly.
+
+### 3.6 Quote Style
+
+The codebase mixes single and double quotes. Follow the file you are editing:
+
+- Auth pages (`loginScreen.tsx`, `registerScreen.tsx`): single quotes
+- Most other files: double quotes
+
 ---
 
-## 八、快速参考卡
+## 4. Architecture & Data Flow
 
-### 颜色速查
+### 4.1 App bootstrap
 
-```typescript
-C.green      // #58CC02 - 主色
-C.greenDark  // #3D8F00 - 主色阴影
-C.blue       // #1CB0F6 - 辅助色
-C.purple     // #CE82FF - 强调色
-C.red        // #FF4B4B - 错误
-C.orange     // #FF9600 - 警告
-C.bg         // #121212 - 背景
-C.surface    // #2A2A2E - 卡片
-C.white      // #FFFFFF - 主文字
-C.gray       // #A1A1AA - 辅助文字
+```
+index.html → main.tsx → styles/index.css + App.tsx
 ```
 
-### 常用组件导入
+### 4.2 Auth flow
 
-```typescript
-import { Button, Card, Toggle, ProgressBar, Label, Pill, TabBar } from '@/components/ui';
-import { C } from '@/constants/designTokens';
+```
+App.tsx
+  ├─ No token → LoginScreen / RegisterScreen
+  │                └─ api.loginUser / api.registerUser (mock)
+  └─ Has token → Header + Screen + TabBar
 ```
 
-### 间距速查
+### 4.3 Main screens
 
-```typescript
-// 内边距
-padding: "20px"           // 卡片
-padding: "13px 22px"      // 标准按钮
-padding: "10px 14px"      // 输入框
+| Tab | Screen | Primary actions |
+|-----|--------|-----------------|
+| Home | `HomeScreen` | Draw random chunk, daily progress, category filter |
+| Library | `LibraryScreen` | Browse/search chunks, filter by category, review status |
+| Settings | `SettingsScreen` | Daily goal, reminders, sound/haptic toggles, weekly grid |
 
-// 外边距
-gap: 12px                 // 组件间距
-marginBottom: 12px        // 区块间距
-padding: "0 20px"         // 页面水平边距
-```
+### 4.4 API layer (`api.ts`)
+
+| Function | Endpoint | Notes |
+|----------|----------|-------|
+| `registerUser` | Mock (800ms delay) | Returns mock JWT + user |
+| `loginUser` | Mock (800ms delay) | Test credentials: `test@example.com` / `password123` |
+| `getChunks` | `GET /chunks?category=` | Real backend via fetch |
+| `getRandomChunk` | `GET /chunks/random?category=` | Real backend via fetch |
+| `recordProgressAnswer` | `POST /progress/answer` | Real backend via fetch |
+
+Base URL: `import.meta.env.VITE_API_BASE_URL` (default `http://localhost:3000`).
+
+### 4.5 Styling systems (dual setup)
+
+| System | Location | Status |
+|--------|----------|--------|
+| Inline styles + `C` tokens | `designToken.ts` | **Active** — all current UI |
+| Tailwind v4 + CSS variables | `styles/theme.css`, `styles/tailwind.css` | Configured, rarely used in components |
+| shadcn/ui defaults | `default_shadcn_theme.css` | Reference only |
+
+When adding new UI, follow the **inline + `C` token** pattern unless deliberately migrating to Tailwind.
 
 ---
 
-src/
-├── components/
-│   ├── ui/
-│   │   └── Button/
-│   │       ├── button.tsx
-│   │       ├── optionBtn.tsx
-│   │       ├── stepBtn.tsx
-│   │       └── index.ts
-│   ├── business/
-│   │   ├── ChunkCard/
-│   │   │   ├── chunkCard.tsx
-│   │   │   └── index.ts
-│   │   ├── EmptyState/
-│   │   │   ├── emptyState.tsx
-│   │   │   └── index.ts
-│   │   └── index.ts
-│   └── index.ts
-├── pages/
-│   ├── Home/
-│   │   ├── homeScreen.tsx
-│   │   └── index.ts
-│   ├── Library/
-│   │   ├── libraryScreen.tsx
-│   │   └── index.ts
-│   ├── Settings/
-│   │   ├── settingsScreen.tsx
-│   │   └── index.ts
-│   └── index.ts
-├── constants/
-│   ├── categories.ts
-│   ├── weekData.ts
-│   └── designTokens.ts
-├── hooks/
-│   └── usePress.ts
-├── utils/
-│   ├── array.ts
-│   └── category.ts
-├── types/
-│   └── chunk.ts
-├── api/
-│   └── ... (已有)
-└── App.tsx  ✅ 现在只有 100 行！
+## 5. Maintenance Notes
+
+### 5.1 Development commands
+
+```bash
+cd Frontend
+npm install
+npm run dev      # Start dev server
+npm run build    # Production build
+```
+
+### 5.2 Environment variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `VITE_API_BASE_URL` | `http://localhost:3000` | Backend API base URL |
+
+Create a `.env` file in `Frontend/` to override:
+
+```
+VITE_API_BASE_URL=http://localhost:3000
+```
+
+### 5.3 Adding a new UI component
+
+1. Create a folder under `src/app/components/ui/ComponentName/`.
+2. Add `componentName.tsx` with a named export and props interface.
+3. Add `index.ts` barrel export.
+4. Re-export from `src/app/components/ui/index.ts`.
+5. Use `C` tokens and `usePress` for interactive elements.
+6. Match existing border radius, spacing, and typography from this document.
+
+### 5.4 Adding a new screen
+
+1. Create a folder under `src/app/pages/ScreenName/`.
+2. Add `screenName.tsx` with `export function ScreenName()`.
+3. Add `index.ts` and export from `src/app/pages/index.ts`.
+4. Wire into `App.tsx` tab state or auth flow as needed.
+
+### 5.5 Known inconsistencies
+
+| Item | Detail |
+|------|--------|
+| Dual styling | Tailwind/shadcn infrastructure exists but active UI is 100% inline + `C` tokens |
+| `auth-screen.tsx` | Orphan shadcn component with broken imports; not wired into the app |
+| `@/` alias | Configured in Vite but unused in source |
+| No `tsconfig.json` | Frontend relies on IDE/Vite defaults for TypeScript |
+| README outdated | Still references editing everything in `App.tsx`; logic has been split into `pages/` and `components/` |
+| Mixed UI language | Traditional Chinese copy (auth) + English labels (tabs, settings) |
+| Auth API | Mock implementation; real backend endpoints are commented out in `api.ts` |
+| `ui/index.ts` type paths | Some type re-exports use lowercase paths (`./button/button`) while folders are PascalCase — works on Windows but may fail on case-sensitive systems |
+
+### 5.6 Recommended future improvements
+
+1. Replace mock auth with real backend API calls (stubs already exist in `api.ts`).
+2. Introduce React Router for deep linking and cleaner navigation.
+3. Consolidate styling — either migrate to Tailwind utilities or extract shared style objects from inline styles.
+4. Add `tsconfig.json` for stricter TypeScript checking.
+5. Type the `user` object properly instead of `any`.
+6. Remove or fix dead code (`auth-screen.tsx`, unused shadcn dependencies if not needed).
+
+---
+
+## Quick Reference
+
+```typescript
+// Colors
+import { C } from "./constants/designToken";
+
+// Press effect
+import { usePress } from "./hooks/usePress";
+
+// Categories
+import { CATEGORIES, type CategoryId } from "./constants/categories";
+
+// Components
+import { Button, Card, Input, Pill, TabBar } from "./components";
+import { ChunkCard, EmptyState } from "./components";
+
+// API
+import { getRandomChunk, getChunks, loginUser } from "./api";
+```
