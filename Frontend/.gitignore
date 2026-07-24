@@ -32,3 +32,6 @@ Thumbs.db
 # Cache folders
 .cache/
 .tmp/
+
+# Unnecessary files
+TODO.md

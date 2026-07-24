@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import { Card, Label, OptionBtn, Button } from "../../ui";
+import { Card, Button } from "../../ui";
 import { getCategoryMeta } from "../../../utils/category";
-import { shuffled } from "../../../utils/array";
 import { C } from "../../../constants/designToken";
 
 interface Chunk {
@@ -20,17 +19,25 @@ interface Chunk {
 
 export interface ChunkCardProps {
   chunk: Chunk;
-  onNext: () => void;
+  showGoalChoice?: boolean;
+  onExit: () => void;
+  onNextChunk: () => void;
+  onCompleteToday: () => void;
+  onKeepLearning: () => void;
 }
 
-export function ChunkCard({ chunk, onNext }: ChunkCardProps) {
+export function ChunkCard({
+  chunk,
+  showGoalChoice = false,
+  onExit,
+  onNextChunk,
+  onCompleteToday,
+  onKeepLearning,
+}: ChunkCardProps) {
   const [revealed, setRevealed] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [opts] = useState(() => shuffled(chunk.options));
   const [blurPct, setBlurPct] = useState(10);
   const [cardIn, setCardIn] = useState(false);
   const cat = getCategoryMeta(chunk.category);
-  const correct = selected === chunk.answer;
 
   useEffect(() => {
     const t = setTimeout(() => setCardIn(true), 30);
@@ -41,13 +48,6 @@ export function ChunkCard({ chunk, onNext }: ChunkCardProps) {
     setRevealed(true);
     setBlurPct(0);
   }
-
-  function handleSelect(opt: string) {
-    if (selected) return;
-    setSelected(opt);
-  }
-
-  const answerColor = correct ? C.green : C.red;
 
   return (
     <div
@@ -233,117 +233,48 @@ export function ChunkCard({ chunk, onNext }: ChunkCardProps) {
         </div>
       </Card>
 
-      {/* ── Fill in the blank ── */}
-      <Card>
-        <Label color={C.purple}>🧩 Fill in the blank</Label>
-        <p
-          style={{
-            color: C.white,
-            fontSize: 15,
-            fontWeight: 700,
-            lineHeight: 1.75,
-            margin: "0 0 16px",
-          }}
-        >
-          {chunk.blank.split("___").map((part, i, arr) => (
-            <span key={i}>
-              {part}
-              {i < arr.length - 1 && (
-                <span
-                  style={{
-                    display: "inline-block",
-                    minWidth: 130,
-                    borderBottom: `2.5px solid ${selected ? answerColor : C.purple}`,
-                    color: selected ? answerColor : C.purple,
-                    fontWeight: 900,
-                    padding: "0 6px",
-                    textAlign: "center",
-                    transition: "all 0.25s ease",
-                  }}
-                >
-                  {selected ?? "___"}
-                </span>
-              )}
-            </span>
-          ))}
-        </p>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {opts.map((opt) => {
-            const isSel = selected === opt;
-            const isRight = isSel && correct;
-            const isWrong = isSel && !correct;
-            return (
-              <OptionBtn
-                key={opt}
-                label={opt}
-                selected={isSel}
-                correct={isRight}
-                wrong={isWrong}
-                disabled={!!selected}
-                onClick={() => handleSelect(opt)}
-              />
-            );
-          })}
-        </div>
-
-        {selected && (
-          <div
-            style={{
-              marginTop: 14,
-              padding: "12px 14px",
-              backgroundColor: correct ? "#1A3A1A" : "#3A1A1A",
-              borderRadius: 12,
-              border: `1.5px solid ${answerColor}44`,
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 10,
-              animation: "fadeSlideIn 0.3s ease",
-            }}
-          >
-            <span style={{ fontSize: 20, flexShrink: 0 }}>
-              {correct ? "🎉" : "💡"}
-            </span>
-            <div>
-              <div
-                style={{
-                  color: answerColor,
-                  fontWeight: 800,
-                  fontSize: 13,
-                  marginBottom: 2,
-                }}
-              >
-                {correct ? "Perfect! You nailed it!" : `Not quite. The answer is:`}
-              </div>
-              {!correct && (
-                <div style={{ color: C.white, fontWeight: 900, fontSize: 14 }}>
-                  "{chunk.answer}"
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </Card>
-
       {/* ── Action buttons ── */}
       <div style={{ display: "flex", gap: 10 }}>
-        <Button
-          label="Skip"
-          bg={C.surface}
-          shadow={C.dim}
-          fg={C.gray}
-          size="md"
-          style={{ flex: 1 }}
-          onClick={onNext}
-        />
-        <Button
-          label={selected ? "Next Chunk →" : "Reveal Answer"}
-          bg={selected ? C.green : C.purple}
-          shadow={selected ? C.greenDark : C.purpleDk}
-          size="md"
-          style={{ flex: 2 }}
-          onClick={selected ? onNext : () => handleSelect(chunk.answer)}
-        />
+        {showGoalChoice ? (
+          <>
+            <Button
+              label="Complete Today's Learning"
+              bg={C.green}
+              shadow={C.greenDark}
+              size="md"
+              style={{ flex: 1 }}
+              onClick={onCompleteToday}
+            />
+            <Button
+              label="Keep Learning"
+              bg={C.blue}
+              shadow={C.blueDark}
+              size="md"
+              style={{ flex: 1 }}
+              onClick={onKeepLearning}
+            />
+          </>
+        ) : (
+          <>
+            <Button
+              label="Exit"
+              bg={C.surface}
+              shadow={C.dim}
+              fg={C.gray}
+              size="md"
+              style={{ flex: 1 }}
+              onClick={onExit}
+            />
+            <Button
+              label="Next Chunk →"
+              bg={C.green}
+              shadow={C.greenDark}
+              size="md"
+              style={{ flex: 2 }}
+              onClick={onNextChunk}
+            />
+          </>
+        )}
       </div>
     </div>
   );

@@ -1,17 +1,28 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { TabBar } from "./components/ui";
-import { HomeScreen, LibraryScreen, SettingsScreen, LoginScreen, RegisterScreen} from "./pages";
+import {
+  HomeScreen,
+  LibraryScreen,
+  SettingsScreen,
+  LoginScreen,
+  RegisterScreen,
+  StreakScreen,
+  MasteredScreen,
+  ChallengeScreen,
+} from "./pages";
 import { C } from "./constants/designToken";
 
 type TabId = "home" | "library" | "settings";
 type AuthMode = "login" | "register";
+type OverlayId = "streak" | "mastered" | "challenge" | null;
 
 export default function App() {
-
   const [tab, setTab] = useState<TabId>("home");
+  const [overlay, setOverlay] = useState<OverlayId>(null);
+  const [homeKey, setHomeKey] = useState(0);
+  const prevTabRef = useRef<TabId>(tab);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
 
-  // 认证状态管理
   const [token, setToken] = useState<string | null>(() =>
     localStorage.getItem("chunk_auth_token")
   );
@@ -19,6 +30,13 @@ export default function App() {
     const savedUser = localStorage.getItem("chunk_auth_user");
     return savedUser ? JSON.parse(savedUser) : null;
   });
+
+  useEffect(() => {
+    if (tab === "home" && prevTabRef.current !== "home") {
+      setHomeKey((k) => k + 1);
+    }
+    prevTabRef.current = tab;
+  }, [tab]);
 
   const handleAuthSuccess = (newToken: string, authUser: any) => {
     localStorage.setItem("chunk_auth_token", newToken);
@@ -44,19 +62,21 @@ export default function App() {
           input::placeholder { color: #A1A1AA; }
         `}</style>
         {authMode === "login" ? (
-          <LoginScreen 
-            onAuthSuccess={handleAuthSuccess} 
-            onSwitchToRegister={() => setAuthMode("register")} 
+          <LoginScreen
+            onAuthSuccess={handleAuthSuccess}
+            onSwitchToRegister={() => setAuthMode("register")}
           />
         ) : (
-          <RegisterScreen 
-            onAuthSuccess={handleAuthSuccess} 
-            onSwitchToLogin={() => setAuthMode("login")} 
+          <RegisterScreen
+            onAuthSuccess={handleAuthSuccess}
+            onSwitchToLogin={() => setAuthMode("login")}
           />
         )}
       </>
     );
   }
+
+  const showShell = !overlay;
 
   return (
     <>
@@ -85,61 +105,61 @@ export default function App() {
           overflow: "hidden",
         }}
       >
-        {/* App header */}
-        <div
-          style={{
-            padding: "36px 20px 12px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexShrink: 0,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {showShell && (
+          <div
+            style={{
+              padding: "36px 20px 12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 10,
+                  background: `linear-gradient(135deg, ${C.green}, #89E219)`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 16,
+                  boxShadow: `0 3px 0 ${C.greenDark}`,
+                }}
+              >
+                🎴
+              </div>
+              <div>
+                <span style={{ fontWeight: 900, fontSize: 20, color: C.green }}>
+                  Chunk
+                </span>
+                <span style={{ fontWeight: 900, fontSize: 20, color: C.white }}>
+                  Master
+                </span>
+              </div>
+            </div>
             <div
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 10,
-                background: `linear-gradient(135deg, ${C.green}, #89E219)`,
+                width: 36,
+                height: 36,
+                borderRadius: "50%",
+                background: `linear-gradient(135deg, ${C.purple} 0%, ${C.blue} 100%)`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: 16,
-                boxShadow: `0 3px 0 ${C.greenDark}`,
+                boxShadow: `0 3px 0 ${C.dim}`,
+                fontWeight: 700,
+                color: C.white,
               }}
             >
-              🎴
-            </div>
-            <div>
-              <span style={{ fontWeight: 900, fontSize: 20, color: C.green }}>
-                Chunk
-              </span>
-              <span style={{ fontWeight: 900, fontSize: 20, color: C.white }}>
-                Master
-              </span>
+              JL
             </div>
           </div>
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: "50%",
-              background: `linear-gradient(135deg, ${C.purple} 0%, ${C.blue} 100%)`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 16,
-              boxShadow: `0 3px 0 ${C.dim}`,
-              fontWeight: 700,
-              color: C.white,
-            }}
-          >
-            JL
-          </div>
-        </div>
+        )}
 
-        {/* Screen */}
         <div
           style={{
             flex: 1,
@@ -148,13 +168,29 @@ export default function App() {
             position: "relative",
           }}
         >
-          {tab === "home" && <HomeScreen />}
-          {tab === "library" && <LibraryScreen />}
-          {tab === "settings" && <SettingsScreen />}
+          {overlay === "streak" && (
+            <StreakScreen onBack={() => setOverlay(null)} />
+          )}
+          {overlay === "mastered" && (
+            <MasteredScreen onBack={() => setOverlay(null)} />
+          )}
+          {overlay === "challenge" && (
+            <ChallengeScreen onBack={() => setOverlay(null)} />
+          )}
+          {!overlay && tab === "home" && (
+            <HomeScreen
+              key={homeKey}
+              onNavigateToLibrary={() => setTab("library")}
+              onNavigateToStreak={() => setOverlay("streak")}
+              onNavigateToMastered={() => setOverlay("mastered")}
+              onNavigateToChallenge={() => setOverlay("challenge")}
+            />
+          )}
+          {!overlay && tab === "library" && <LibraryScreen />}
+          {!overlay && tab === "settings" && <SettingsScreen />}
         </div>
 
-        {/* Tab bar */}
-        <TabBar active={tab} onChange={setTab} />
+        {showShell && <TabBar active={tab} onChange={setTab} />}
       </div>
     </>
   );

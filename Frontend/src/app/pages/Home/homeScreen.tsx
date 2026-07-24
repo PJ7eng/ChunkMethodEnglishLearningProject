@@ -1,18 +1,35 @@
 import { useState } from "react";
-import { Card, ProgressBar, Pill, ChunkCard, EmptyState } from "../../components";
+import { ProgressBar, Pill, ChunkCard, EmptyState } from "../../components";
 import { getRandomChunk, type ChunkResponse } from "../../api";
 import { CATEGORIES } from "../../constants/categories";
 import { C } from "../../constants/designToken";
 
-export function HomeScreen() {
+export interface HomeScreenProps {
+  onNavigateToLibrary?: () => void;
+  onNavigateToStreak?: () => void;
+  onNavigateToMastered?: () => void;
+  onNavigateToChallenge?: () => void;
+}
+
+export function HomeScreen({
+  onNavigateToLibrary,
+  onNavigateToStreak,
+  onNavigateToMastered,
+  onNavigateToChallenge,
+}: HomeScreenProps) {
   const [cat, setCat] = useState("all");
   const [chunk, setChunk] = useState<ChunkResponse | null>(null);
   const [key, setKey] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(0);
+  const [atGoalBoundary, setAtGoalBoundary] = useState(false);
   const streak = 12;
-  const done = 8;
   const goal = 12;
+  const learnedCount = 47;
+  const masteredCount = 3;
+
+  const progressValue = Math.min(done, goal);
 
   async function draw() {
     setLoading(true);
@@ -26,6 +43,34 @@ export function HomeScreen() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleExit() {
+    setAtGoalBoundary(false);
+    setChunk(null);
+  }
+
+  function handleNextChunk() {
+    setDone((d) => {
+      const next = d + 1;
+      if (next > 0 && next % goal === goal - 1) {
+        setAtGoalBoundary(true);
+      }
+      return next;
+    });
+    draw();
+  }
+
+  function handleCompleteToday() {
+    setDone((d) => d + 1);
+    setAtGoalBoundary(false);
+    setChunk(null);
+  }
+
+  function handleKeepLearning() {
+    setDone((d) => d + 1);
+    setAtGoalBoundary(false);
+    draw();
   }
 
   return (
@@ -67,10 +112,10 @@ export function HomeScreen() {
               Daily Progress
             </span>
             <span style={{ fontSize: 11, fontWeight: 900, color: C.green }}>
-              {done}/{goal} chunks
+              {progressValue}/{goal} chunks
             </span>
           </div>
-          <ProgressBar value={done} max={goal} />
+          <ProgressBar value={progressValue} max={goal} />
         </div>
         {/* Streak pill */}
         <div
@@ -129,9 +174,27 @@ export function HomeScreen() {
           </div>
         )}
         {!chunk ? (
-          <EmptyState onDraw={draw} done={done} goal={goal} loading={loading} />
+          <EmptyState
+            onDraw={draw}
+            loading={loading}
+            learnedCount={learnedCount}
+            streakCount={streak}
+            masteredCount={masteredCount}
+            onLearnedClick={onNavigateToLibrary}
+            onStreakClick={onNavigateToStreak}
+            onMasteredClick={onNavigateToMastered}
+            onStartChallenge={onNavigateToChallenge}
+          />
         ) : (
-          <ChunkCard key={key} chunk={chunk} onNext={draw} />
+          <ChunkCard
+            key={key}
+            chunk={chunk}
+            showGoalChoice={atGoalBoundary}
+            onExit={handleExit}
+            onNextChunk={handleNextChunk}
+            onCompleteToday={handleCompleteToday}
+            onKeepLearning={handleKeepLearning}
+          />
         )}
       </div>
     </div>

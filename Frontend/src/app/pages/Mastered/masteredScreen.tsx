@@ -1,17 +1,57 @@
 import { useState, useEffect } from "react";
-import { Card, Button } from "../../components";
+import { Button } from "../../components";
 import { getChunks, type ChunkResponse } from "../../api";
 import { CATEGORIES } from "../../constants/categories";
 import { getCategoryMeta } from "../../utils/category";
+import { usePress } from "../../hooks/usePress";
 import { C } from "../../constants/designToken";
 
-// 扩展类型，添加本地状态字段
 interface ChunkWithState extends ChunkResponse {
   needsReview: boolean;
   mastered: boolean;
 }
 
-export function LibraryScreen() {
+export interface MasteredScreenProps {
+  onBack: () => void;
+}
+
+function BackButton({ onClick }: { onClick: () => void }) {
+  const { pressed, handlers } = usePress();
+  const lift = pressed ? 3 : 0;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      {...handlers}
+      aria-label="Go back"
+      style={{
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        border: "none",
+        backgroundColor: C.surface,
+        color: C.white,
+        fontSize: 18,
+        fontWeight: 900,
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: `0 ${4 - lift}px 0 ${C.dim}`,
+        transform: `translateY(${lift}px)`,
+        transition: "transform 0.08s ease, box-shadow 0.08s ease",
+        WebkitTapHighlightColor: "transparent",
+        fontFamily: "'Nunito', sans-serif",
+        flexShrink: 0,
+      }}
+    >
+      ←
+    </button>
+  );
+}
+
+export function MasteredScreen({ onBack }: MasteredScreenProps) {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -26,7 +66,11 @@ export function LibraryScreen() {
       try {
         const data = await getChunks(filter === "all" ? undefined : filter);
         setChunks(
-          data.map((item) => ({ ...item, needsReview: false, mastered: false }))
+          data.map((item, index) => ({
+            ...item,
+            needsReview: false,
+            mastered: index < 3,
+          }))
         );
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load chunks");
@@ -38,12 +82,10 @@ export function LibraryScreen() {
     load();
   }, [filter]);
 
-  const filtered = chunks.filter(
-    (c) =>
-      !search || c.phrase.toLowerCase().includes(search.toLowerCase())
+  const masteredChunks = chunks.filter((c) => c.mastered);
+  const filtered = masteredChunks.filter(
+    (c) => !search || c.phrase.toLowerCase().includes(search.toLowerCase())
   );
-
-  const reviewCount = chunks.filter((c) => c.needsReview).length;
 
   return (
     <div
@@ -54,51 +96,44 @@ export function LibraryScreen() {
         flexDirection: "column",
       }}
     >
-      {/* Header */}
-      <div style={{ padding: "14px 20px 10px", flexShrink: 0 }}>
+      <div style={{ padding: "36px 20px 10px", flexShrink: 0 }}>
         <div
           style={{
             display: "flex",
-            justifyContent: "space-between",
             alignItems: "center",
-            marginBottom: reviewCount > 0 ? 8 : 0,
+            gap: 12,
+            marginBottom: 12,
           }}
         >
-          <h2 style={{ color: C.white, fontWeight: 900, fontSize: 22, margin: 0 }}>
-            一共學習到了 {chunks.length} chunks!
-          </h2>
-          <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>📚</span>
+          <BackButton onClick={onBack} />
         </div>
-        {reviewCount > 0 && (
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
-            <div
+
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              minWidth: 0,
+              margin: "20px 0"
+            }}
+          >
+            <h2
               style={{
-                backgroundColor: C.red + "22",
-                border: `1.5px solid ${C.red}55`,
-                borderRadius: 10,
-                padding: "5px 10px",
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
+                color: C.white,
+                fontWeight: 900,
+                fontSize: 22,
+                margin: 0,
               }}
             >
-              <div
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  backgroundColor: C.red,
-                  boxShadow: `0 0 6px ${C.red}`,
-                }}
-              />
-              <span style={{ color: C.red, fontSize: 11, fontWeight: 900 }}>
-                {reviewCount} to review
-              </span>
-            </div>
+              一共掌握到 {masteredChunks.length} chunks!
+            </h2>
+            <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0, marginLeft: 8 }}>
+              🏅
+            </span>
           </div>
-        )}
+        
 
-        {/* Search */}
         <div
           style={{
             display: "flex",
@@ -107,7 +142,6 @@ export function LibraryScreen() {
             backgroundColor: C.surface,
             borderRadius: 14,
             padding: "10px 14px",
-            marginTop: 12,
             border: `1.5px solid ${search ? C.purple + "88" : "transparent"}`,
             boxShadow: `0 3px 0 ${C.dim}`,
             transition: "border-color 0.2s ease",
@@ -147,7 +181,6 @@ export function LibraryScreen() {
         </div>
       </div>
 
-      {/* Filter chips */}
       <div style={{ overflowX: "auto", paddingBottom: 12, flexShrink: 0 }}>
         <div
           style={{
@@ -192,7 +225,6 @@ export function LibraryScreen() {
         </div>
       </div>
 
-      {/* Chunk list */}
       <div
         style={{
           padding: "0 16px 28px",
@@ -210,9 +242,9 @@ export function LibraryScreen() {
           <div style={{ color: C.gray, fontWeight: 700 }}>Loading chunks...</div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 20px" }}>
-            <div style={{ fontSize: 40, marginBottom: 10 }}>🔍</div>
+            <div style={{ fontSize: 40, marginBottom: 10 }}>🏅</div>
             <div style={{ color: C.gray, fontWeight: 700, fontSize: 14 }}>
-              No chunks found
+              No mastered chunks yet
             </div>
           </div>
         ) : (
@@ -239,22 +271,6 @@ export function LibraryScreen() {
                     transition: "border-radius 0.2s ease",
                   }}
                 >
-                  {/* Red dot */}
-                  {chunk.needsReview && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 10,
-                        right: 10,
-                        width: 9,
-                        height: 9,
-                        borderRadius: "50%",
-                        backgroundColor: C.red,
-                        boxShadow: `0 0 8px ${C.red}`,
-                      }}
-                    />
-                  )}
-                  {/* Icon */}
                   <div
                     style={{
                       width: 46,
@@ -295,41 +311,24 @@ export function LibraryScreen() {
                       flexShrink: 0,
                     }}
                   >
-                    {chunk.mastered && (
-                      <div
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 900,
-                          color: C.green,
-                          backgroundColor: C.green + "1A",
-                          border: `1.5px solid ${C.green}44`,
-                          padding: "2px 7px",
-                          borderRadius: 6,
-                        }}
-                      >
-                        ✓ MASTERED
-                      </div>
-                    )}
-                    {chunk.needsReview && (
-                      <div
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 900,
-                          color: C.red,
-                          backgroundColor: C.red + "1A",
-                          padding: "2px 7px",
-                          borderRadius: 6,
-                        }}
-                      >
-                        REVIEW
-                      </div>
-                    )}
+                    <div
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 900,
+                        color: C.green,
+                        backgroundColor: C.green + "1A",
+                        border: `1.5px solid ${C.green}44`,
+                        padding: "2px 7px",
+                        borderRadius: 6,
+                      }}
+                    >
+                      ✓ MASTERED
+                    </div>
                     <span style={{ color: C.gray, fontSize: 14, marginLeft: 4 }}>
                       {isOpen ? "▲" : "▼"}
                     </span>
                   </div>
                 </button>
-                {/* Expanded detail */}
                 {isOpen && (
                   <div
                     style={{

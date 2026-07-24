@@ -1,6 +1,7 @@
 export {Button, OptionBtn, StepBtn, LoginBtn } from './button';
 export { Toggle } from './Toggle';
 export { Card } from './Card';
+export { Calendar } from './Calendar';
 export { ProgressBar } from './ProgressBar';
 export { Label } from './Label';
 export { Pill } from './Pill';
