@@ -1,17 +1,56 @@
 import { useState, useEffect } from "react";
-import { Card, Button } from "../../components";
+import { Button, SearchBar, CategoryPills } from "../../components";
 import { getChunks, type ChunkResponse } from "../../api";
-import { CATEGORIES } from "../../constants/categories";
 import { getCategoryMeta } from "../../utils/category";
+import { usePress } from "../../hooks/usePress";
 import { C } from "../../constants/designToken";
 
-// 扩展类型，添加本地状态字段
 interface ChunkWithState extends ChunkResponse {
   needsReview: boolean;
   mastered: boolean;
 }
 
-export function LibraryScreen() {
+export interface LibraryScreenProps {
+  onBack: () => void;
+}
+
+function BackButton({ onClick }: { onClick: () => void }) {
+  const { pressed, handlers } = usePress();
+  const lift = pressed ? 3 : 0;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      {...handlers}
+      aria-label="Go back"
+      style={{
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        border: "none",
+        backgroundColor: C.surface,
+        color: C.white,
+        fontSize: 18,
+        fontWeight: 900,
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: `0 ${4 - lift}px 0 ${C.dim}`,
+        transform: `translateY(${lift}px)`,
+        transition: "transform 0.08s ease, box-shadow 0.08s ease",
+        WebkitTapHighlightColor: "transparent",
+        fontFamily: "'Nunito', sans-serif",
+        flexShrink: 0,
+      }}
+    >
+      ←
+    </button>
+  );
+}
+
+export function LibraryScreen({ onBack }: LibraryScreenProps) {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -54,8 +93,18 @@ export function LibraryScreen() {
         flexDirection: "column",
       }}
     >
-      {/* Header */}
-      <div style={{ padding: "14px 20px 10px", flexShrink: 0 }}>
+      <div style={{ padding: "36px 20px 10px", flexShrink: 0 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            marginBottom: 12,
+          }}
+        >
+          <BackButton onClick={onBack} />
+        </div>
+
         <div
           style={{
             display: "flex",
@@ -98,99 +147,15 @@ export function LibraryScreen() {
           </div>
         )}
 
-        {/* Search */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            backgroundColor: C.surface,
-            borderRadius: 14,
-            padding: "10px 14px",
-            marginTop: 12,
-            border: `1.5px solid ${search ? C.purple + "88" : "transparent"}`,
-            boxShadow: `0 3px 0 ${C.dim}`,
-            transition: "border-color 0.2s ease",
-          }}
-        >
-          <span style={{ fontSize: 14, color: C.gray }}>🔍</span>
-          <input
-            placeholder="Search chunks..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              flex: 1,
-              backgroundColor: "transparent",
-              border: "none",
-              outline: "none",
-              color: C.white,
-              fontFamily: "'Nunito', sans-serif",
-              fontWeight: 700,
-              fontSize: 14,
-            }}
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: C.gray,
-                fontSize: 14,
-                lineHeight: 1,
-              }}
-            >
-              ✕
-            </button>
-          )}
-        </div>
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Search chunks..."
+          style={{ marginTop: 12 }}
+        />
       </div>
 
-      {/* Filter chips */}
-      <div style={{ overflowX: "auto", paddingBottom: 12, flexShrink: 0 }}>
-        <div
-          style={{
-            display: "flex",
-            gap: 7,
-            padding: "0 20px",
-            width: "max-content",
-          }}
-        >
-          {[
-            { id: "all", emoji: "⭐", label: "All", color: C.gray, bg: C.surface },
-            ...CATEGORIES.slice(1),
-          ].map((cat) => {
-            const active = filter === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setFilter(cat.id)}
-                style={{
-                  padding: "5px 12px",
-                  borderRadius: 20,
-                  border: active
-                    ? `2px solid ${cat.color}`
-                    : "2px solid transparent",
-                  backgroundColor: active ? cat.bg || C.surface : C.surface,
-                  color: active ? cat.color : C.gray,
-                  fontWeight: 800,
-                  fontSize: 12,
-                  cursor: "pointer",
-                  fontFamily: "'Nunito', sans-serif",
-                  transition: "all 0.15s ease",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-              >
-                <span>{cat.emoji}</span>
-                <span>{cat.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <CategoryPills value={filter} onChange={setFilter} />
 
       {/* Chunk list */}
       <div
@@ -239,7 +204,6 @@ export function LibraryScreen() {
                     transition: "border-radius 0.2s ease",
                   }}
                 >
-                  {/* Red dot */}
                   {chunk.needsReview && (
                     <div
                       style={{
@@ -254,7 +218,6 @@ export function LibraryScreen() {
                       }}
                     />
                   )}
-                  {/* Icon */}
                   <div
                     style={{
                       width: 46,
@@ -329,7 +292,6 @@ export function LibraryScreen() {
                     </span>
                   </div>
                 </button>
-                {/* Expanded detail */}
                 {isOpen && (
                   <div
                     style={{

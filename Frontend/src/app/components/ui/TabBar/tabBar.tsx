@@ -1,10 +1,10 @@
 import { C } from "../../../constants/designToken";
 
-type TabId = "home" | "library" | "settings";
+type TabId = "home" | "notes" | "settings";
 
 const TABS: { id: TabId; icon: string; label: string }[] = [
   { id: "home", icon: "🏠", label: "Home" },
-  { id: "library", icon: "📚", label: "Library" },
+  { id: "notes", icon: "📝", label: "Notes" },
   { id: "settings", icon: "⚙️", label: "Settings" },
 ];
 

@@ -9,12 +9,13 @@ import {
   StreakScreen,
   MasteredScreen,
   ChallengeScreen,
+  NoteScreen,
 } from "./pages";
 import { C } from "./constants/designToken";
 
-type TabId = "home" | "library" | "settings";
+type TabId = "home" | "notes" | "settings";
 type AuthMode = "login" | "register";
-type OverlayId = "streak" | "mastered" | "challenge" | null;
+type OverlayId = "streak" | "mastered" | "challenge" | "library" | null;
 
 export default function App() {
   const [tab, setTab] = useState<TabId>("home");
@@ -177,16 +178,19 @@ export default function App() {
           {overlay === "challenge" && (
             <ChallengeScreen onBack={() => setOverlay(null)} />
           )}
+          {overlay === "library" && (
+            <LibraryScreen onBack={() => setOverlay(null)} />
+          )}
           {!overlay && tab === "home" && (
             <HomeScreen
               key={homeKey}
-              onNavigateToLibrary={() => setTab("library")}
+              onNavigateToLibrary={() => setOverlay("library")}
               onNavigateToStreak={() => setOverlay("streak")}
               onNavigateToMastered={() => setOverlay("mastered")}
               onNavigateToChallenge={() => setOverlay("challenge")}
             />
           )}
-          {!overlay && tab === "library" && <LibraryScreen />}
+          {!overlay && tab === "notes" && <NoteScreen />}
           {!overlay && tab === "settings" && <SettingsScreen />}
         </div>
 

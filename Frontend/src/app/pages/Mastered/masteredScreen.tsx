@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import { Button } from "../../components";
+import { Button, SearchBar, CategoryPills } from "../../components";
 import { getChunks, type ChunkResponse } from "../../api";
-import { CATEGORIES } from "../../constants/categories";
 import { getCategoryMeta } from "../../utils/category";
 import { usePress } from "../../hooks/usePress";
 import { C } from "../../constants/designToken";
@@ -134,96 +133,14 @@ export function MasteredScreen({ onBack }: MasteredScreenProps) {
           </div>
         
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            backgroundColor: C.surface,
-            borderRadius: 14,
-            padding: "10px 14px",
-            border: `1.5px solid ${search ? C.purple + "88" : "transparent"}`,
-            boxShadow: `0 3px 0 ${C.dim}`,
-            transition: "border-color 0.2s ease",
-          }}
-        >
-          <span style={{ fontSize: 14, color: C.gray }}>🔍</span>
-          <input
-            placeholder="Search chunks..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              flex: 1,
-              backgroundColor: "transparent",
-              border: "none",
-              outline: "none",
-              color: C.white,
-              fontFamily: "'Nunito', sans-serif",
-              fontWeight: 700,
-              fontSize: 14,
-            }}
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: C.gray,
-                fontSize: 14,
-                lineHeight: 1,
-              }}
-            >
-              ✕
-            </button>
-          )}
-        </div>
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Search chunks..."
+        />
       </div>
 
-      <div style={{ overflowX: "auto", paddingBottom: 12, flexShrink: 0 }}>
-        <div
-          style={{
-            display: "flex",
-            gap: 7,
-            padding: "0 20px",
-            width: "max-content",
-          }}
-        >
-          {[
-            { id: "all", emoji: "⭐", label: "All", color: C.gray, bg: C.surface },
-            ...CATEGORIES.slice(1),
-          ].map((cat) => {
-            const active = filter === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setFilter(cat.id)}
-                style={{
-                  padding: "5px 12px",
-                  borderRadius: 20,
-                  border: active
-                    ? `2px solid ${cat.color}`
-                    : "2px solid transparent",
-                  backgroundColor: active ? cat.bg || C.surface : C.surface,
-                  color: active ? cat.color : C.gray,
-                  fontWeight: 800,
-                  fontSize: 12,
-                  cursor: "pointer",
-                  fontFamily: "'Nunito', sans-serif",
-                  transition: "all 0.15s ease",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-              >
-                <span>{cat.emoji}</span>
-                <span>{cat.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <CategoryPills value={filter} onChange={setFilter} />
 
       <div
         style={{
