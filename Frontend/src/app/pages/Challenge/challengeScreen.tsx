@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import { Button, ProgressBar, FillBlankCard } from "../../components";
-import { usePress } from "../../hooks/usePress";
-import { getRandomChunk, type ChunkResponse } from "../../api";
+import { Button, ProgressBar, FillBlankCard, BackButton } from "../../components";
+import { getRandomChunk, recordProgressAnswer, type ChunkResponse } from "../../api";
 import { C } from "../../constants/designToken";
 
 export interface ChallengeScreenProps {
@@ -11,41 +10,6 @@ export interface ChallengeScreenProps {
 
 const DEFAULT_TOTAL = 10;
 
-function BackButton({ onClick }: { onClick: () => void }) {
-  const { pressed, handlers } = usePress();
-  const lift = pressed ? 3 : 0;
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      {...handlers}
-      aria-label="Exit challenge"
-      style={{
-        width: 36,
-        height: 36,
-        borderRadius: 12,
-        border: "none",
-        backgroundColor: C.surface,
-        color: C.white,
-        fontSize: 18,
-        fontWeight: 900,
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        boxShadow: `0 ${4 - lift}px 0 ${C.dim}`,
-        transform: `translateY(${lift}px)`,
-        transition: "transform 0.08s ease, box-shadow 0.08s ease",
-        WebkitTapHighlightColor: "transparent",
-        fontFamily: "'Nunito', sans-serif",
-      }}
-    >
-      ←
-    </button>
-  );
-}
-
 export function ChallengeScreen({
   onBack,
   totalQuestions = DEFAULT_TOTAL,
@@ -54,17 +18,27 @@ export function ChallengeScreen({
   const [cardKey, setCardKey] = useState(0);
   const [questionIndex, setQuestionIndex] = useState(1);
   const [answered, setAnswered] = useState(false);
+  const [lastCorrect, setLastCorrect] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [finished, setFinished] = useState(false);
+  const [score, setScore] = useState(0);
 
   async function loadChunk() {
     setLoading(true);
     setError(null);
     setAnswered(false);
+    setLastCorrect(false);
     try {
       const next = await getRandomChunk();
-      setChunk(next);
+      setChunk({
+        ...next,
+        pinyin: next.pinyin || "",
+        examples: next.examples || [],
+        options: next.options || [],
+        needsReview: next.needsReview ?? false,
+        mastered: next.mastered ?? false,
+      });
       setCardKey((k) => k + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load challenge");
@@ -77,22 +51,21 @@ export function ChallengeScreen({
     loadChunk();
   }, []);
 
-  function advance() {
+  async function advance(isCorrect: boolean | null) {
+    if (chunk && isCorrect !== null) {
+      try {
+        await recordProgressAnswer(chunk.id, isCorrect);
+        if (isCorrect) setScore((s) => s + 1);
+      } catch {
+        /* continue */
+      }
+    }
     if (questionIndex >= totalQuestions) {
       setFinished(true);
       return;
     }
     setQuestionIndex((i) => i + 1);
     loadChunk();
-  }
-
-  function handleSkip() {
-    advance();
-  }
-
-  function handleNext() {
-    if (!answered) return;
-    advance();
   }
 
   return (
@@ -105,7 +78,6 @@ export function ChallengeScreen({
         padding: "36px 20px 28px",
       }}
     >
-      {/* Top bar */}
       <div
         style={{
           display: "grid",
@@ -115,7 +87,7 @@ export function ChallengeScreen({
           flexShrink: 0,
         }}
       >
-        <BackButton onClick={onBack} />
+        <BackButton onClick={onBack} ariaLabel="Exit challenge" />
         <h2
           style={{
             margin: 0,
@@ -130,7 +102,6 @@ export function ChallengeScreen({
         <div />
       </div>
 
-      {/* Progress */}
       {!finished && (
         <div style={{ marginBottom: 16, flexShrink: 0 }}>
           <div
@@ -152,7 +123,7 @@ export function ChallengeScreen({
               Question {Math.min(questionIndex, totalQuestions)} of {totalQuestions}
             </span>
             <span style={{ fontSize: 11, fontWeight: 900, color: C.purple }}>
-              {Math.min(questionIndex, totalQuestions)}/{totalQuestions}
+              Score {score}
             </span>
           </div>
           <ProgressBar
@@ -163,16 +134,7 @@ export function ChallengeScreen({
         </div>
       )}
 
-      {/* Content */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          minHeight: 0,
-        }}
-      >
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
         {finished ? (
           <div
             style={{
@@ -186,29 +148,12 @@ export function ChallengeScreen({
               padding: "40px 12px",
             }}
           >
-            <div style={{ fontSize: 64, lineHeight: 1 }}>🏆</div>
-            <h3
-              style={{
-                margin: 0,
-                color: C.white,
-                fontWeight: 900,
-                fontSize: 24,
-              }}
-            >
+            <div style={{ fontSize: 64 }}>🏆</div>
+            <h3 style={{ margin: 0, color: C.white, fontWeight: 900, fontSize: 24 }}>
               Challenge complete!
             </h3>
-            <p
-              style={{
-                margin: 0,
-                color: C.gray,
-                fontSize: 14,
-                fontWeight: 600,
-                lineHeight: 1.5,
-                maxWidth: 280,
-              }}
-            >
-              You finished all {totalQuestions} questions. Great work — keep the streak
-              going!
+            <p style={{ margin: 0, color: C.gray, fontSize: 14, fontWeight: 600 }}>
+              You scored {score}/{totalQuestions}. Progress has been saved.
             </p>
             <Button
               label="Back to Home"
@@ -222,51 +167,24 @@ export function ChallengeScreen({
         ) : (
           <>
             {error && (
-              <div style={{ color: C.red, fontWeight: 800, fontSize: 13 }}>
-                {error}
-              </div>
+              <div style={{ color: C.red, fontWeight: 800, fontSize: 13 }}>{error}</div>
             )}
             {loading && !chunk && (
-              <div
-                style={{
-                  color: C.gray,
-                  fontWeight: 700,
-                  fontSize: 14,
-                  textAlign: "center",
-                  padding: "48px 0",
-                }}
-              >
+              <div style={{ color: C.gray, fontWeight: 700, textAlign: "center", padding: 48 }}>
                 Loading challenge...
               </div>
             )}
             {chunk && (
-              <div
-                style={{
-                  opacity: loading ? 0.55 : 1,
-                  transition: "opacity 0.2s ease",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 12,
-                  flex: 1,
+              <FillBlankCard
+                key={cardKey}
+                chunk={chunk}
+                onAnswered={(correct) => {
+                  setAnswered(true);
+                  setLastCorrect(correct);
                 }}
-              >
-                <FillBlankCard
-                  key={cardKey}
-                  chunk={chunk}
-                  onAnswered={() => setAnswered(true)}
-                />
-              </div>
+              />
             )}
-
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                marginTop: "auto",
-                paddingTop: 8,
-                flexShrink: 0,
-              }}
-            >
+            <div style={{ display: "flex", gap: 10, marginTop: "auto", paddingTop: 8 }}>
               <Button
                 label="Skip"
                 bg={C.surface}
@@ -274,7 +192,7 @@ export function ChallengeScreen({
                 fg={C.gray}
                 size="md"
                 style={{ flex: 1 }}
-                onClick={handleSkip}
+                onClick={() => advance(false)}
                 disabled={loading}
               />
               <Button
@@ -283,7 +201,10 @@ export function ChallengeScreen({
                 shadow={C.purpleDk}
                 size="md"
                 style={{ flex: 2 }}
-                onClick={handleNext}
+                onClick={() => {
+                  if (!answered) return;
+                  advance(lastCorrect);
+                }}
                 disabled={loading || !answered}
               />
             </div>

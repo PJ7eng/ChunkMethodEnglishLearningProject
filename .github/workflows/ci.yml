@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: chunk_learning_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/chunk_learning_test?schema=public
+      JWT_SECRET: ci-only-secret-with-more-than-32-bytes
+      CORS_ORIGINS: http://localhost:5173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            Backend/package-lock.json
+            Frontend/package-lock.json
+      - name: Install backend
+        working-directory: Backend
+        run: npm ci
+      - name: Apply migrations
+        working-directory: Backend
+        run: npx prisma migrate deploy
+      - name: Verify backend
+        working-directory: Backend
+        run: npm run typecheck && npm test && npm run test:e2e && npm run build
+      - name: Install frontend
+        working-directory: Frontend
+        run: npm ci
+      - name: Verify frontend
+        working-directory: Frontend
+        run: npm run typecheck && npm run build
+      - name: Build production image
+        run: docker build -t chunkmaster-api:${{ github.sha }} Backend

@@ -9,10 +9,12 @@ export interface EmptyStateProps {
   learnedCount?: number;
   streakCount?: number;
   masteredCount?: number;
+  reviewCount?: number;
   onLearnedClick?: () => void;
   onStreakClick?: () => void;
   onMasteredClick?: () => void;
   onStartChallenge?: () => void;
+  onReviewClick?: () => void;
 }
 
 interface StatCardProps {
@@ -80,13 +82,15 @@ function StatCard({ icon, value, label, onClick }: StatCardProps) {
 export function EmptyState({
   onDraw,
   loading,
-  learnedCount = 47,
-  streakCount = 12,
-  masteredCount = 3,
+  learnedCount = 0,
+  streakCount = 0,
+  masteredCount = 0,
+  reviewCount = 0,
   onLearnedClick,
   onStreakClick,
   onMasteredClick,
   onStartChallenge,
+  onReviewClick,
 }: EmptyStateProps) {
   const stats = [
     { icon: "📚", value: learnedCount, label: "Learned", onClick: onLearnedClick },
@@ -144,6 +148,55 @@ export function EmptyState({
           />
         ))}
       </div>
+
+      {/* Review queue */}
+      <Card style={{ padding: "18px 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 14,
+              background: `linear-gradient(135deg, ${C.red}33, ${C.orange}22)`,
+              border: `1.5px solid ${C.red}55`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 24,
+              flexShrink: 0,
+            }}
+          >
+            🔁
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                color: C.white,
+                fontWeight: 900,
+                fontSize: 16,
+                lineHeight: 1.2,
+                marginBottom: 4,
+              }}
+            >
+              Review
+            </div>
+            <div style={{ color: C.gray, fontSize: 12, fontWeight: 600, lineHeight: 1.4 }}>
+              {reviewCount > 0
+                ? `${reviewCount} chunk${reviewCount === 1 ? "" : "s"} need review`
+                : "No items in your wrong book yet"}
+            </div>
+          </div>
+          <Button
+            label="Review"
+            bg={C.orange}
+            shadow="#C07000"
+            size="sm"
+            onClick={onReviewClick}
+            style={{ flexShrink: 0 }}
+            disabled={!onReviewClick}
+          />
+        </div>
+      </Card>
 
       {/* Start Challenge */}
       <Card style={{ padding: "18px 16px" }}>

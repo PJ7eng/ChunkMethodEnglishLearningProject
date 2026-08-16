@@ -10,22 +10,47 @@ import {
   MasteredScreen,
   ChallengeScreen,
   NoteScreen,
+  ProfileScreen,
+  ReviewScreen,
+  AdminScreen,
+  AccountActionScreen,
 } from "./pages";
+import {
+  getCurrentUser,
+  getPreferences,
+  type PreferencesResponse,
+  logoutUser,
+} from "./api";
 import { C } from "./constants/designToken";
 
-type TabId = "home" | "notes" | "settings";
+type TabId = "home" | "notes" | "profile";
 type AuthMode = "login" | "register";
-type OverlayId = "streak" | "mastered" | "challenge" | "library" | null;
+type OverlayId =
+  | "streak"
+  | "mastered"
+  | "challenge"
+  | "library"
+  | "settings"
+  | "review"
+  | null;
+
+const DEFAULT_DAILY_GOAL = 10;
 
 export default function App() {
+  const [isAdminPath, setIsAdminPath] = useState(
+    () => window.location.pathname.startsWith("/admin"),
+  );
   const [tab, setTab] = useState<TabId>("home");
   const [overlay, setOverlay] = useState<OverlayId>(null);
   const [homeKey, setHomeKey] = useState(0);
   const prevTabRef = useRef<TabId>(tab);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [dailyGoal, setDailyGoal] = useState(DEFAULT_DAILY_GOAL);
+  const [prefs, setPrefs] = useState<PreferencesResponse | null>(null);
+  const [bootstrapping, setBootstrapping] = useState(true);
 
   const [token, setToken] = useState<string | null>(() =>
-    localStorage.getItem("chunk_auth_token")
+    localStorage.getItem("chunk_auth_token"),
   );
   const [user, setUser] = useState<any>(() => {
     const savedUser = localStorage.getItem("chunk_auth_user");
@@ -39,6 +64,41 @@ export default function App() {
     prevTabRef.current = tab;
   }, [tab]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function bootstrap() {
+      if (!token) {
+        setBootstrapping(false);
+        return;
+      }
+      try {
+        const me = await getCurrentUser();
+        if (cancelled) return;
+        if (me.user) {
+          setUser(me.user);
+          localStorage.setItem("chunk_auth_user", JSON.stringify(me.user));
+        }
+        const preferences = await getPreferences();
+        if (cancelled) return;
+        setPrefs(preferences);
+        setDailyGoal(preferences.dailyGoal);
+      } catch {
+        if (!cancelled) {
+          localStorage.removeItem("chunk_auth_token");
+          localStorage.removeItem("chunk_auth_user");
+          setToken(null);
+          setUser(null);
+        }
+      } finally {
+        if (!cancelled) setBootstrapping(false);
+      }
+    }
+    bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
   const handleAuthSuccess = (newToken: string, authUser: any) => {
     localStorage.setItem("chunk_auth_token", newToken);
     localStorage.setItem("chunk_auth_user", JSON.stringify(authUser));
@@ -47,11 +107,30 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    void logoutUser().catch(() => undefined);
     localStorage.removeItem("chunk_auth_token");
     localStorage.removeItem("chunk_auth_user");
     setToken(null);
     setUser(null);
+    setOverlay(null);
+    setTab("home");
+    setAuthMode("login");
+    setPrefs(null);
   };
+
+  if (
+    window.location.pathname.startsWith("/verify-email") ||
+    window.location.pathname.startsWith("/reset-password")
+  ) {
+    return (
+      <AccountActionScreen
+        onDone={() => {
+          window.history.replaceState({}, "", "/");
+          window.location.reload();
+        }}
+      />
+    );
+  }
 
   if (!token) {
     return (
@@ -77,7 +156,52 @@ export default function App() {
     );
   }
 
+  if (bootstrapping) {
+    return (
+      <div
+        style={{
+          minHeight: "100svh",
+          backgroundColor: C.bg,
+          color: C.gray,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "'Nunito', sans-serif",
+          fontWeight: 800,
+        }}
+      >
+        Loading...
+      </div>
+    );
+  }
+
+  const canAdmin =
+    user?.role === "content_reviewer" ||
+    user?.role === "content_admin" ||
+    user?.role === "super_admin";
+  if (isAdminPath && canAdmin) {
+    return (
+      <AdminScreen
+        onExit={() => {
+          window.history.pushState({}, "", "/");
+          setIsAdminPath(false);
+        }}
+      />
+    );
+  }
+
   const showShell = !overlay;
+  const showAppHeader = showShell && tab !== "profile";
+
+  const displayName =
+    user?.name || (user?.email ? String(user.email).split("@")[0] : "Learner");
+  const initials =
+    String(displayName)
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p: string) => p[0]?.toUpperCase() || "")
+      .join("") || "JL";
 
   return (
     <>
@@ -106,7 +230,7 @@ export default function App() {
           overflow: "hidden",
         }}
       >
-        {showShell && (
+        {showAppHeader && (
           <div
             style={{
               padding: "36px 20px 12px",
@@ -141,7 +265,14 @@ export default function App() {
                 </span>
               </div>
             </div>
-            <div
+            <button
+              type="button"
+              aria-label={canAdmin ? "Open admin dashboard" : "User profile"}
+              onClick={() => {
+                if (!canAdmin) return;
+                window.history.pushState({}, "", "/admin");
+                setIsAdminPath(true);
+              }}
               style={{
                 width: 36,
                 height: 36,
@@ -154,10 +285,12 @@ export default function App() {
                 boxShadow: `0 3px 0 ${C.dim}`,
                 fontWeight: 700,
                 color: C.white,
+                border: "none",
+                cursor: canAdmin ? "pointer" : "default",
               }}
             >
-              JL
-            </div>
+              {initials}
+            </button>
           </div>
         )}
 
@@ -181,17 +314,41 @@ export default function App() {
           {overlay === "library" && (
             <LibraryScreen onBack={() => setOverlay(null)} />
           )}
+          {overlay === "review" && (
+            <ReviewScreen onBack={() => setOverlay(null)} />
+          )}
+          {overlay === "settings" && (
+            <SettingsScreen
+              onBack={() => setOverlay(null)}
+              onLogout={handleLogout}
+              onPreferencesChange={(p) => {
+                setPrefs(p);
+                setDailyGoal(p.dailyGoal);
+              }}
+            />
+          )}
           {!overlay && tab === "home" && (
             <HomeScreen
               key={homeKey}
+              dailyGoal={dailyGoal}
+              soundEnabled={prefs?.soundEnabled ?? true}
               onNavigateToLibrary={() => setOverlay("library")}
               onNavigateToStreak={() => setOverlay("streak")}
               onNavigateToMastered={() => setOverlay("mastered")}
               onNavigateToChallenge={() => setOverlay("challenge")}
+              onNavigateToReview={() => setOverlay("review")}
             />
           )}
           {!overlay && tab === "notes" && <NoteScreen />}
-          {!overlay && tab === "settings" && <SettingsScreen />}
+          {!overlay && tab === "profile" && (
+            <ProfileScreen
+              userName={displayName}
+              avatarInitials={initials}
+              dailyGoal={dailyGoal}
+              onDailyGoalChange={setDailyGoal}
+              onOpenSettings={() => setOverlay("settings")}
+            />
+          )}
         </div>
 
         {showShell && <TabBar active={tab} onChange={setTab} />}

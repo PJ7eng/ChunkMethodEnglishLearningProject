@@ -1,0 +1,17 @@
+{
+  "name": "ChunkMaster",
+  "short_name": "ChunkMaster",
+  "description": "以 chunks 建立可持續的英語學習習慣",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#58CC02",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-export {Button, OptionBtn, StepBtn, LoginBtn } from './button';
+export {Button, OptionBtn, StepBtn, LoginBtn } from './Button';
 export { Toggle } from './Toggle';
 export { Card } from './Card';
 export { Calendar } from './Calendar';
@@ -11,11 +11,12 @@ export { Modal, ConfirmModal } from './Modal';
 export { XpDots } from './XpDots';
 export { TabBar } from './TabBar';
 export { Input } from './Input';
+export { BackButton } from './BackButton';
 
-export type { ButtonProps } from './button/button';
-export type { OptionBtnProps } from './button/optionBtn';
-export type { LoginBtnProps } from './button/loginBtn';
-export type { StepBtnProps } from './button/stepBtn';
+export type { ButtonProps } from './Button/button';
+export type { OptionBtnProps } from './Button/optionBtn';
+export type { LoginBtnProps } from './Button/loginBtn';
+export type { StepBtnProps } from './Button/stepBtn';
 export type { ToggleProps } from './Toggle/toggle';
 export type { CardProps } from './Card/card';
 export type { ProgressBarProps } from './ProgressBar/progressBar';
@@ -26,3 +27,4 @@ export type { SearchBarProps } from './SearchBar';
 export type { ModalProps, ConfirmModalProps } from './Modal';
 export type { default as XpDotsProps } from './XpDots/xpDots';
 export type { TabBarProps } from './TabBar/tabBar';
+export type { BackButtonProps } from './BackButton';

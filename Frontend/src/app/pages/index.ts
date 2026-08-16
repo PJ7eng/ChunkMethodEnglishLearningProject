@@ -1,4 +1,4 @@
-export { LoginScreen, RegisterScreen } from './Auth';
+export { AccountActionScreen, LoginScreen, RegisterScreen } from './Auth';
 export { HomeScreen } from './Home';
 export { LibraryScreen } from './Library';
 export { SettingsScreen } from './Settings';
@@ -6,3 +6,6 @@ export { StreakScreen } from './Streak';
 export { MasteredScreen } from './Mastered';
 export { ChallengeScreen } from './Challenge';
 export { NoteScreen } from './Note';
+export { ProfileScreen } from './Profile';
+export { ReviewScreen } from './Review';
+export { AdminScreen } from './Admin';

@@ -83,9 +83,13 @@ const todayBtnStyle = {
 };
 
 /**
- * @param {{ completedDays?: Set<string>, style?: React.CSSProperties }} props
+ * @param {{
+ *   completedDays?: Set<string>,
+ *   style?: React.CSSProperties,
+ *   onMonthChange?: (year: number, month: number) => void,
+ * }} props
  */
-export function Calendar({ completedDays: completedDaysProp, style } = {}) {
+export function Calendar({ completedDays: completedDaysProp, style, onMonthChange } = {}) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -97,26 +101,39 @@ export function Calendar({ completedDays: completedDaysProp, style } = {}) {
   const firstDay = getFirstDayOfMonth(viewYear, viewMonth);
 
   function prevMonth() {
+    let y = viewYear;
+    let m = viewMonth;
     if (viewMonth === 0) {
-      setViewMonth(11);
-      setViewYear((y) => y - 1);
+      m = 11;
+      y = viewYear - 1;
     } else {
-      setViewMonth((m) => m - 1);
+      m = viewMonth - 1;
     }
+    setViewMonth(m);
+    setViewYear(y);
+    onMonthChange?.(y, m);
   }
 
   function nextMonth() {
+    let y = viewYear;
+    let m = viewMonth;
     if (viewMonth === 11) {
-      setViewMonth(0);
-      setViewYear((y) => y + 1);
+      m = 0;
+      y = viewYear + 1;
     } else {
-      setViewMonth((m) => m + 1);
+      m = viewMonth + 1;
     }
+    setViewMonth(m);
+    setViewYear(y);
+    onMonthChange?.(y, m);
   }
 
   function goToday() {
-    setViewYear(today.getFullYear());
-    setViewMonth(today.getMonth());
+    const y = today.getFullYear();
+    const m = today.getMonth();
+    setViewYear(y);
+    setViewMonth(m);
+    onMonthChange?.(y, m);
   }
 
   const cells = [

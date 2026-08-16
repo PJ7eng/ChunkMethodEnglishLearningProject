@@ -21,7 +21,7 @@ export interface ChunkCardProps {
   chunk: Chunk;
   showGoalChoice?: boolean;
   onExit: () => void;
-  onNextChunk: () => void;
+  onNextChunk: (remembered: boolean) => void;
   onCompleteToday: () => void;
   onKeepLearning: () => void;
 }
@@ -89,7 +89,7 @@ export function ChunkCard({
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <span style={{ fontSize: 11, color: C.gray, fontWeight: 700 }}>
-              🎴 NEW
+              {chunk.mastered ? "✓ MASTERED" : chunk.needsReview ? "↻ REVIEW" : "🎴 NEW"}
             </span>
           </div>
         </div>
@@ -265,14 +265,36 @@ export function ChunkCard({
               style={{ flex: 1 }}
               onClick={onExit}
             />
-            <Button
-              label="Next Chunk →"
-              bg={C.green}
-              shadow={C.greenDark}
-              size="md"
-              style={{ flex: 2 }}
-              onClick={onNextChunk}
-            />
+            {revealed ? (
+              <>
+                <Button
+                  label="Still learning"
+                  bg={C.orange}
+                  shadow="#C07000"
+                  size="md"
+                  style={{ flex: 1 }}
+                  onClick={() => onNextChunk(false)}
+                />
+                <Button
+                  label="I remembered"
+                  bg={C.green}
+                  shadow={C.greenDark}
+                  size="md"
+                  style={{ flex: 1 }}
+                  onClick={() => onNextChunk(true)}
+                />
+              </>
+            ) : (
+              <Button
+                label="Reveal first"
+                bg={C.surface3}
+                shadow={C.dim}
+                fg={C.gray}
+                size="md"
+                style={{ flex: 2 }}
+                disabled
+              />
+            )}
           </>
         )}
       </div>

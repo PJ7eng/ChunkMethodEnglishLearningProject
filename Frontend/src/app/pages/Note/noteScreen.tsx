@@ -7,11 +7,16 @@ import {
   NoteFormModal,
 } from "../../components";
 import type { NoteFormValues } from "../../components";
+import {
+  getNotes,
+  createNote,
+  updateNote,
+  deleteNotes,
+} from "../../api";
 import { getCategoryMeta } from "../../utils/category";
 import { usePress } from "../../hooks/usePress";
 import { C } from "../../constants/designToken";
 
-const NOTES_STORAGE_KEY = "chunk_user_notes";
 const LONG_PRESS_MS = 450;
 const RED_DARK = "#C0392B";
 
@@ -21,21 +26,6 @@ export interface NoteItem {
   translation: string;
   category: string;
   createdAt: number;
-}
-
-function loadNotes(): NoteItem[] {
-  try {
-    const raw = localStorage.getItem(NOTES_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveNotes(notes: NoteItem[]) {
-  localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notes));
 }
 
 interface FabButtonProps {
@@ -243,7 +233,7 @@ function NoteRow({
 }
 
 export function NoteScreen() {
-  const [notes, setNotes] = useState<NoteItem[]>(() => loadNotes());
+  const [notes, setNotes] = useState<NoteItem[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [modal, setModal] = useState<"create" | "edit" | "confirmDelete" | null>(
@@ -252,10 +242,15 @@ export function NoteScreen() {
   const [editingNote, setEditingNote] = useState<NoteItem | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    saveNotes(notes);
-  }, [notes]);
+    getNotes()
+      .then(setNotes)
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : "Failed to load notes"),
+      );
+  }, []);
 
   const filtered = useMemo(() => {
     return notes.filter((n) => {
@@ -274,23 +269,28 @@ export function NoteScreen() {
     setSelectedIds(new Set());
   }
 
-  function handleCreate(data: NoteFormValues) {
-    const next: NoteItem = {
-      ...data,
-      id: crypto.randomUUID(),
-      createdAt: Date.now(),
-    };
-    setNotes((prev) => [next, ...prev]);
-    setModal(null);
+  async function handleCreate(data: NoteFormValues) {
+    try {
+      const next = await createNote(data);
+      setNotes((prev) => [next, ...prev]);
+      setModal(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create note");
+    }
   }
 
-  function handleEdit(data: NoteFormValues) {
+  async function handleEdit(data: NoteFormValues) {
     if (!editingNote) return;
-    setNotes((prev) =>
-      prev.map((n) => (n.id === editingNote.id ? { ...n, ...data } : n))
-    );
-    setEditingNote(null);
-    setModal(null);
+    try {
+      const next = await updateNote(editingNote.id, data);
+      setNotes((prev) =>
+        prev.map((n) => (n.id === editingNote.id ? next : n)),
+      );
+      setEditingNote(null);
+      setModal(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update note");
+    }
   }
 
   function handleLongPress(id: string) {
@@ -309,10 +309,16 @@ export function NoteScreen() {
     });
   }
 
-  function handleConfirmDelete() {
-    setNotes((prev) => prev.filter((n) => !selectedIds.has(n.id)));
-    setModal(null);
-    exitSelection();
+  async function handleConfirmDelete() {
+    const ids = Array.from(selectedIds);
+    try {
+      await deleteNotes(ids);
+      setNotes((prev) => prev.filter((n) => !selectedIds.has(n.id)));
+      setModal(null);
+      exitSelection();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete notes");
+    }
   }
 
   const selectedCount = selectedIds.size;
@@ -394,6 +400,9 @@ export function NoteScreen() {
             gap: 8,
           }}
         >
+          {error && (
+            <div style={{ color: C.red, fontWeight: 800, fontSize: 13 }}>{error}</div>
+          )}
           {filtered.length === 0 ? (
             <div style={{ textAlign: "center", padding: "48px 20px" }}>
               <div style={{ fontSize: 40, marginBottom: 10 }}>📝</div>

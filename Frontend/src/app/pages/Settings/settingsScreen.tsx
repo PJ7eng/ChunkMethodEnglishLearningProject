@@ -1,209 +1,109 @@
-import { useState } from "react";
-import { Card, Label, Toggle, StepBtn } from "../../components";
-import { WEEK_DATA } from "../../constants/weekData";
+import { useEffect, useState } from "react";
+import { Card, Label, Toggle, Button, BackButton } from "../../components";
+import { deleteAccount, exportAccount, getPreferences, updatePreferences, type PreferencesResponse } from "../../api";
 import { C } from "../../constants/designToken";
 
-export function SettingsScreen() {
-  const [goal, setGoal] = useState(5);
+export interface SettingsScreenProps {
+  onBack: () => void;
+  onLogout: () => void;
+  onPreferencesChange?: (prefs: PreferencesResponse) => void;
+}
+
+export function SettingsScreen({
+  onBack,
+  onLogout,
+  onPreferencesChange,
+}: SettingsScreenProps) {
   const [sound, setSound] = useState(true);
   const [remind, setRemind] = useState(true);
   const [haptic, setHaptic] = useState(false);
   const [autoNext, setAutoNext] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [accountMessage, setAccountMessage] = useState<string | null>(null);
 
-  const longestStreak = 18;
-  const totalChunks = 47;
-  const weeklyDone = WEEK_DATA.filter((d) => d.done).length;
+  useEffect(() => {
+    getPreferences()
+      .then((p) => {
+        setSound(p.soundEnabled);
+        setRemind(p.reminderEnabled);
+        setHaptic(p.hapticEnabled);
+        setAutoNext(p.autoNextEnabled);
+        onPreferencesChange?.(p);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  async function patch(partial: Partial<PreferencesResponse>) {
+    setSaving(true);
+    try {
+      const next = await updatePreferences(partial);
+      setSound(next.soundEnabled);
+      setRemind(next.reminderEnabled);
+      setHaptic(next.hapticEnabled);
+      setAutoNext(next.autoNextEnabled);
+      onPreferencesChange?.(next);
+    } catch {
+      /* keep local */
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function downloadAccount() {
+    const data = await exportAccount();
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "chunkmaster-account.json";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function removeAccount() {
+    const password = window.prompt("輸入密碼以永久刪除帳號");
+    if (!password) return;
+    try {
+      await deleteAccount(password);
+      onLogout();
+    } catch (error) {
+      setAccountMessage(error instanceof Error ? error.message : "刪除帳號失敗");
+    }
+  }
 
   return (
     <div
       style={{
         height: "100%",
         overflowY: "auto",
-        padding: "14px 20px 28px",
+        display: "flex",
+        flexDirection: "column",
+        padding: "36px 20px 28px",
       }}
     >
-      <h2 style={{ color: C.white, fontWeight: 900, fontSize: 22, margin: "0 0 16px" }}>
-        Settings
-      </h2>
-
-      {/* ── Weekly habit grid ── */}
-      <Card style={{ marginBottom: 12 }}>
-        <Label color={C.orange}>🔥 This Week's Habit</Label>
-        <div style={{ display: "flex", gap: 7, marginBottom: 14 }}>
-          {WEEK_DATA.map((d, i) => (
-            <div
-              key={i}
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 5,
-              }}
-            >
-              <div
-                style={{
-                  width: "100%",
-                  aspectRatio: "1",
-                  borderRadius: 12,
-                  background: d.done
-                    ? `linear-gradient(135deg, ${C.green}, #89E219)`
-                    : d.count > 0
-                    ? "#1A3A1A"
-                    : C.surface3,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: d.done ? `0 3px 0 ${C.greenDark}` : `0 3px 0 ${C.dim}`,
-                  fontSize: 12,
-                  fontWeight: 900,
-                  color: d.done ? C.white : d.count > 0 ? C.green : C.gray,
-                  position: "relative",
-                  overflow: "hidden",
-                }}
-              >
-                {d.done ? "✓" : d.count > 0 ? d.count : ""}
-                {d.done && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      background:
-                        "linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 60%)",
-                    }}
-                  />
-                )}
-              </div>
-              <span
-                style={{
-                  fontSize: 10,
-                  color: d.done ? C.green : C.gray,
-                  fontWeight: 900,
-                }}
-              >
-                {d.day}
-              </span>
-            </div>
-          ))}
-        </div>
-        <div
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "36px 1fr 36px",
+          alignItems: "center",
+          marginBottom: 20,
+          flexShrink: 0,
+        }}
+      >
+        <BackButton onClick={onBack} />
+        <h2
           style={{
-            padding: "10px 14px",
-            background: `linear-gradient(135deg, #1A3A1A, #0D2210)`,
-            borderRadius: 11,
-            border: `1.5px solid ${C.green}33`,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
+            margin: 0,
+            textAlign: "center",
+            color: C.white,
+            fontWeight: 900,
+            fontSize: 22,
           }}
         >
-          <span style={{ fontSize: 16 }}>🏆</span>
-          <span style={{ color: C.green, fontWeight: 800, fontSize: 13 }}>
-            {weeklyDone}-day streak this week! Keep going!
-          </span>
-        </div>
-      </Card>
-
-      {/* ── Stats row ── */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-        {[
-          { label: "Total Chunks", value: totalChunks, color: C.blue, icon: "📚" },
-          {
-            label: "Best Streak",
-            value: `${longestStreak}🔥`,
-            color: C.orange,
-            icon: "🏅",
-          },
-          {
-            label: "This Week",
-            value: `${WEEK_DATA.reduce((s, d) => s + d.count, 0)}`,
-            color: C.purple,
-            icon: "📅",
-          },
-        ].map((s) => (
-          <div
-            key={s.label}
-            style={{
-              flex: 1,
-              backgroundColor: C.surface,
-              borderRadius: 15,
-              padding: "13px 8px",
-              boxShadow: `0 4px 0 ${C.dim}`,
-              textAlign: "center",
-            }}
-          >
-            <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
-            <div style={{ fontWeight: 900, fontSize: 17, color: s.color }}>
-              {s.value}
-            </div>
-            <div
-              style={{
-                fontSize: 9,
-                color: C.gray,
-                fontWeight: 800,
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                marginTop: 2,
-              }}
-            >
-              {s.label}
-            </div>
-          </div>
-        ))}
+          Settings
+        </h2>
+        <div />
       </div>
 
-      {/* ── Daily goal stepper ── */}
-      <Card style={{ marginBottom: 12 }}>
-        <Label color={C.blue}>🎯 Daily Chunk Goal</Label>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-          <StepBtn icon="−" onClick={() => setGoal((g) => Math.max(1, g - 1))} />
-          <div style={{ flex: 1, textAlign: "center" }}>
-            <div
-              style={{
-                fontWeight: 900,
-                fontSize: 52,
-                lineHeight: 1,
-                background: `linear-gradient(135deg, ${C.blue}, ${C.purple})`,
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}
-            >
-              {goal}
-            </div>
-            <div style={{ color: C.gray, fontSize: 13, fontWeight: 700, marginTop: 4 }}>
-              chunks per day
-            </div>
-          </div>
-          <StepBtn icon="+" onClick={() => setGoal((g) => Math.min(20, g + 1))} />
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {[3, 5, 7, 10, 15].map((n) => (
-            <button
-              key={n}
-              onClick={() => setGoal(n)}
-              style={{
-                flex: 1,
-                padding: "9px 0",
-                borderRadius: 11,
-                backgroundColor: goal === n ? "#1A2A3A" : C.surface3,
-                border: `2px solid ${goal === n ? C.blue : "transparent"}`,
-                color: goal === n ? C.blue : C.gray,
-                fontWeight: 900,
-                fontSize: 14,
-                cursor: "pointer",
-                fontFamily: "'Nunito', sans-serif",
-                transition: "all 0.15s ease",
-                boxShadow:
-                  goal === n ? `0 3px 0 ${C.blueDark}44` : `0 3px 0 ${C.dim}`,
-              }}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-      </Card>
-
-      {/* ── Toggle preferences ── */}
       <Card style={{ marginBottom: 12 }}>
         <Label color={C.purple}>⚙️ Preferences</Label>
         {[
@@ -212,32 +112,36 @@ export function SettingsScreen() {
             sub: "Play sounds on correct answers",
             icon: "🔊",
             val: sound,
-            set: () => setSound((v) => !v),
+            set: () => patch({ soundEnabled: !sound }),
           },
           {
             label: "Daily Reminders",
             sub: "Notify me to keep my streak alive",
             icon: "🔔",
             val: remind,
-            set: () => setRemind((v) => !v),
+            set: () => setAccountMessage("Daily Reminders 將在 V1.1 提供。"),
           },
           {
             label: "Haptic Feedback",
             sub: "Vibrate on interactions (mobile)",
             icon: "📳",
             val: haptic,
-            set: () => setHaptic((v) => !v),
+            set: () => setAccountMessage("Haptic Feedback 將在原生版本提供。"),
           },
           {
             label: "Auto-Next Card",
             sub: "Skip animation, go straight to next",
             icon: "⚡",
             val: autoNext,
-            set: () => setAutoNext((v) => !v),
+            set: () => patch({ autoNextEnabled: !autoNext }),
           },
-        ].map((item, i, arr) => (
-          <div key={i}>
-            {i > 0 && <div style={{ height: 1, backgroundColor: C.surface3, margin: "13px 0" }} />}
+        ].map((item, i) => (
+          <div key={item.label}>
+            {i > 0 && (
+              <div
+                style={{ height: 1, backgroundColor: C.surface3, margin: "13px 0" }}
+              />
+            )}
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div
                 style={{
@@ -274,9 +178,34 @@ export function SettingsScreen() {
             </div>
           </div>
         ))}
+        {saving && (
+          <div style={{ color: C.gray, fontSize: 11, fontWeight: 700, marginTop: 10 }}>
+            Saving...
+          </div>
+        )}
       </Card>
 
-      {/* ── App info ── */}
+      <Card style={{ marginBottom: 12 }}>
+        <Label color={C.blue}>🔐 Account & Privacy</Label>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => void downloadAccount()}>匯出我的資料</button>
+          <button onClick={() => void removeAccount()} style={{ color: C.red }}>刪除帳號</button>
+          <a href="/privacy.html" target="_blank" rel="noreferrer">隱私政策</a>
+          <a href="/terms.html" target="_blank" rel="noreferrer">使用條款</a>
+        </div>
+        {accountMessage && <p style={{ color: C.orange }}>{accountMessage}</p>}
+      </Card>
+
+      <Button
+        label="Log Out"
+        bg={C.red}
+        shadow="#C0392B"
+        size="md"
+        full
+        onClick={onLogout}
+        style={{ marginBottom: 16 }}
+      />
+
       <div style={{ textAlign: "center", padding: "8px 0" }}>
         <div
           style={{
@@ -295,9 +224,7 @@ export function SettingsScreen() {
             <span style={{ color: C.green }}>Chunk</span>
             <span style={{ color: C.white }}>Master</span>
           </span>
-          <span style={{ color: C.gray, fontSize: 11, fontWeight: 700 }}>
-            v1.0.0
-          </span>
+          <span style={{ color: C.gray, fontSize: 11, fontWeight: 700 }}>v1.0.0</span>
         </div>
         <div style={{ color: C.gray, fontSize: 11, fontWeight: 700 }}>
           Built for ambitious language learners ✨

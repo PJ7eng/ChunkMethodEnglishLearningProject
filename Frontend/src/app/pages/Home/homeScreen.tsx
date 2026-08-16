@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ProgressBar, Pill, ChunkCard, EmptyState } from "../../components";
-import { getRandomChunk, type ChunkResponse } from "../../api";
+import {
+  getRandomChunk,
+  getCategoryStats,
+  getTodayProgress,
+  recordProgressAnswer,
+  type ChunkResponse,
+} from "../../api";
 import { CATEGORIES } from "../../constants/categories";
 import { C } from "../../constants/designToken";
 
@@ -9,6 +15,29 @@ export interface HomeScreenProps {
   onNavigateToStreak?: () => void;
   onNavigateToMastered?: () => void;
   onNavigateToChallenge?: () => void;
+  onNavigateToReview?: () => void;
+  dailyGoal?: number;
+  soundEnabled?: boolean;
+}
+
+function playCorrectSound(enabled?: boolean) {
+  if (!enabled || typeof window === "undefined") return;
+  try {
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 880;
+    gain.gain.value = 0.04;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function HomeScreen({
@@ -16,6 +45,9 @@ export function HomeScreen({
   onNavigateToStreak,
   onNavigateToMastered,
   onNavigateToChallenge,
+  onNavigateToReview,
+  dailyGoal = 10,
+  soundEnabled = true,
 }: HomeScreenProps) {
   const [cat, setCat] = useState("all");
   const [chunk, setChunk] = useState<ChunkResponse | null>(null);
@@ -23,25 +55,87 @@ export function HomeScreen({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(0);
+  const [goal, setGoal] = useState(dailyGoal);
+  const [streak, setStreak] = useState(0);
   const [atGoalBoundary, setAtGoalBoundary] = useState(false);
-  const streak = 12;
-  const goal = 12;
-  const learnedCount = 47;
-  const masteredCount = 3;
+  const [learnedCount, setLearnedCount] = useState(0);
+  const [masteredCount, setMasteredCount] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [shownAt, setShownAt] = useState(Date.now());
 
   const progressValue = Math.min(done, goal);
+
+  useEffect(() => {
+    setGoal(dailyGoal);
+  }, [dailyGoal]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const today = await getTodayProgress();
+        if (cancelled) return;
+        setDone(today.completedCount);
+        setGoal(today.goal || dailyGoal);
+        setStreak(today.streak);
+      } catch {
+        /* keep defaults */
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [dailyGoal]);
+
+  async function refreshStats() {
+    try {
+      const stats = await getCategoryStats();
+      setLearnedCount(stats.totals.learned);
+      setMasteredCount(stats.totals.mastered);
+      setReviewCount(stats.totals.needsReview);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  useEffect(() => {
+    refreshStats();
+  }, []);
 
   async function draw() {
     setLoading(true);
     setError(null);
     try {
       const next = await getRandomChunk(cat);
-      setChunk(next);
+      setChunk({
+        ...next,
+        pinyin: next.pinyin || "",
+        needsReview: next.needsReview ?? false,
+        mastered: next.mastered ?? false,
+        examples: next.examples || [],
+        options: next.options || [],
+      });
       setKey((k) => k + 1);
+      setShownAt(Date.now());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load chunk");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function recordAndBump(chunkId: string, isCorrect: boolean) {
+    try {
+      await recordProgressAnswer(chunkId, isCorrect, undefined, Date.now() - shownAt);
+      if (isCorrect) playCorrectSound(soundEnabled);
+      const today = await getTodayProgress();
+      setDone(today.completedCount);
+      setGoal(today.goal || dailyGoal);
+      setStreak(today.streak);
+      refreshStats();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save progress");
     }
   }
 
@@ -50,27 +144,25 @@ export function HomeScreen({
     setChunk(null);
   }
 
-  function handleNextChunk() {
-    setDone((d) => {
-      const next = d + 1;
-      if (next > 0 && next % goal === goal - 1) {
-        setAtGoalBoundary(true);
-      }
-      return next;
-    });
-    draw();
+  async function handleNextChunk(remembered: boolean) {
+    if (!chunk) return;
+    const nextDone = done + 1;
+    const hitGoal = nextDone > 0 && nextDone % goal === 0;
+    await recordAndBump(chunk.id, remembered);
+    if (hitGoal) {
+      setAtGoalBoundary(true);
+    }
+    await draw();
   }
 
   function handleCompleteToday() {
-    setDone((d) => d + 1);
     setAtGoalBoundary(false);
     setChunk(null);
   }
 
-  function handleKeepLearning() {
-    setDone((d) => d + 1);
+  async function handleKeepLearning() {
     setAtGoalBoundary(false);
-    draw();
+    await draw();
   }
 
   return (
@@ -82,7 +174,6 @@ export function HomeScreen({
         flexDirection: "column",
       }}
     >
-      {/* ── Top bar ── */}
       <div
         style={{
           padding: "14px 20px 10px",
@@ -117,8 +208,9 @@ export function HomeScreen({
           </div>
           <ProgressBar value={progressValue} max={goal} />
         </div>
-        {/* Streak pill */}
-        <div
+        <button
+          type="button"
+          onClick={onNavigateToStreak}
           style={{
             display: "flex",
             alignItems: "center",
@@ -128,16 +220,17 @@ export function HomeScreen({
             padding: "7px 12px",
             boxShadow: `0 4px 0 ${C.dim}`,
             flexShrink: 0,
+            border: "none",
+            cursor: "pointer",
           }}
         >
           <span style={{ fontSize: 19 }}>🔥</span>
           <span style={{ fontWeight: 900, fontSize: 19, color: C.orange }}>
             {streak}
           </span>
-        </div>
+        </button>
       </div>
 
-      {/* ── Category pills ── */}
       <div style={{ overflowX: "auto", paddingBottom: 12, flexShrink: 0 }}>
         <div
           style={{
@@ -158,7 +251,6 @@ export function HomeScreen({
         </div>
       </div>
 
-      {/* ── Main ── */}
       <div
         style={{
           flex: 1,
@@ -184,6 +276,8 @@ export function HomeScreen({
             onStreakClick={onNavigateToStreak}
             onMasteredClick={onNavigateToMastered}
             onStartChallenge={onNavigateToChallenge}
+            reviewCount={reviewCount}
+            onReviewClick={onNavigateToReview}
           />
         ) : (
           <ChunkCard

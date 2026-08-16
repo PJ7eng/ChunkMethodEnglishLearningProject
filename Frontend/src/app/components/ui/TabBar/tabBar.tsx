@@ -1,11 +1,11 @@
 import { C } from "../../../constants/designToken";
 
-type TabId = "home" | "notes" | "settings";
+type TabId = "home" | "notes" | "profile";
 
 const TABS: { id: TabId; icon: string; label: string }[] = [
   { id: "home", icon: "🏠", label: "Home" },
   { id: "notes", icon: "📝", label: "Notes" },
-  { id: "settings", icon: "⚙️", label: "Settings" },
+  { id: "profile", icon: "👤", label: "Profile" },
 ];
 
 export interface TabBarProps {
@@ -49,7 +49,6 @@ export function TabBar({ active, onChange }: TabBarProps) {
               WebkitTapHighlightColor: "transparent",
             }}
           >
-            {/* Active indicator */}
             <div
               style={{
                 position: "absolute",

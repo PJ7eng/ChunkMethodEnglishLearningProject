@@ -16,11 +16,16 @@ test('register hashes the password and stores a new user', async () => {
           name: data.name ?? null,
           createdAt: new Date(),
           passwordHash: data.passwordHash,
+          role: 'learner',
+          emailVerifiedAt: null,
         };
       },
     },
-    userPreference: {
-      create: async ({ data }: { data: any }) => ({ id: 'pref-1', ...data }),
+    emailVerificationToken: {
+      create: async ({ data }: { data: any }) => ({ id: 'verify-1', ...data }),
+    },
+    userSession: {
+      create: async ({ data }: { data: any }) => ({ id: 'session-1', ...data }),
     },
   };
 

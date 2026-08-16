@@ -1,48 +1,10 @@
-import { Card, Calendar } from "../../components";
-import { usePress } from "../../hooks/usePress";
+import { useEffect, useState } from "react";
+import { Card, Calendar, BackButton } from "../../components";
+import { getStreakStats, getProgressCalendar } from "../../api";
 import { C } from "../../constants/designToken";
 
 export interface StreakScreenProps {
   onBack: () => void;
-}
-
-const STREAK_DAYS = 12;
-const TOTAL_PRACTICED = 47;
-const DAY_PRACTICED = 8;
-
-function BackButton({ onClick }: { onClick: () => void }) {
-  const { pressed, handlers } = usePress();
-  const lift = pressed ? 3 : 0;
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      {...handlers}
-      aria-label="Go back"
-      style={{
-        width: 36,
-        height: 36,
-        borderRadius: 12,
-        border: "none",
-        backgroundColor: C.surface,
-        color: C.white,
-        fontSize: 18,
-        fontWeight: 900,
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        boxShadow: `0 ${4 - lift}px 0 ${C.dim}`,
-        transform: `translateY(${lift}px)`,
-        transition: "transform 0.08s ease, box-shadow 0.08s ease",
-        WebkitTapHighlightColor: "transparent",
-        fontFamily: "'Nunito', sans-serif",
-      }}
-    >
-      ←
-    </button>
-  );
 }
 
 function StatMiniCard({ value, label }: { value: number; label: string }) {
@@ -62,6 +24,37 @@ function StatMiniCard({ value, label }: { value: number; label: string }) {
 }
 
 export function StreakScreen({ onBack }: StreakScreenProps) {
+  const [streak, setStreak] = useState(0);
+  const [totalPracticed, setTotalPracticed] = useState(0);
+  const [dayPracticed, setDayPracticed] = useState(0);
+  const [completedDays, setCompletedDays] = useState<Set<string>>(new Set());
+  const [viewYear, setViewYear] = useState(new Date().getFullYear());
+  const [viewMonth, setViewMonth] = useState(new Date().getMonth());
+
+  useEffect(() => {
+    getStreakStats()
+      .then((s) => {
+        setStreak(s.currentStreak);
+        setTotalPracticed(s.totalPracticedDays);
+        setDayPracticed(s.weekData.filter((d) => d.done).length);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    getProgressCalendar(viewYear, viewMonth)
+      .then((res) => {
+        const set = new Set<string>();
+        for (const d of res.days) {
+          // Calendar uses `year-month-day` with 0-based month
+          const [y, m, day] = d.date.split("-").map(Number);
+          set.add(`${y}-${m - 1}-${day}`);
+        }
+        setCompletedDays(set);
+      })
+      .catch(() => setCompletedDays(new Set()));
+  }, [viewYear, viewMonth]);
+
   return (
     <div
       style={{
@@ -72,7 +65,6 @@ export function StreakScreen({ onBack }: StreakScreenProps) {
         padding: "36px 20px 28px",
       }}
     >
-      {/* Top bar */}
       <div
         style={{
           display: "grid",
@@ -97,11 +89,10 @@ export function StreakScreen({ onBack }: StreakScreenProps) {
         <div />
       </div>
 
-      {/* Streak hero */}
       <Card
         style={{
           marginBottom: 16,
-          padding: "48px 24px",
+          padding: "24px 16px",
           backgroundColor: "transparent",
           background: `linear-gradient(135deg, ${C.orange} 0%, ${C.bg} 100%)`,
           border: "1px solid rgba(255, 255, 255, 0.28)",
@@ -110,8 +101,6 @@ export function StreakScreen({ onBack }: StreakScreenProps) {
             inset 0 1px 0 rgba(255, 255, 255, 0.35),
             inset 0 -1px 0 rgba(0, 0, 0, 0.2)
           `,
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
         }}
       >
         <div
@@ -131,7 +120,7 @@ export function StreakScreen({ onBack }: StreakScreenProps) {
                 marginBottom: 2,
               }}
             >
-              {STREAK_DAYS}
+              {streak}
             </div>
             <div style={{ fontWeight: 900, fontSize: 18, color: C.white }}>
               day Streak!
@@ -141,7 +130,6 @@ export function StreakScreen({ onBack }: StreakScreenProps) {
         </div>
       </Card>
 
-      {/* Motivation card */}
       <Card style={{ marginBottom: 12, padding: "24px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
           <span style={{ fontSize: 40, lineHeight: 1, flexShrink: 0 }}>🔥</span>
@@ -161,14 +149,18 @@ export function StreakScreen({ onBack }: StreakScreenProps) {
         </div>
       </Card>
 
-      {/* Stats row */}
       <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-        <StatMiniCard value={TOTAL_PRACTICED} label="Total Practiced" />
-        <StatMiniCard value={DAY_PRACTICED} label="Day Practiced" />
+        <StatMiniCard value={totalPracticed} label="Total Practiced" />
+        <StatMiniCard value={dayPracticed} label="Day Practiced" />
       </div>
 
-      {/* Calendar */}
-      <Calendar />
+      <Calendar
+        completedDays={completedDays}
+        onMonthChange={(y, m) => {
+          setViewYear(y);
+          setViewMonth(m);
+        }}
+      />
     </div>
   );
 }

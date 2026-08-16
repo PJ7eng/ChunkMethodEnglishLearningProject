@@ -39,6 +39,32 @@ class FakePrisma {
 test('creates a generation job and persists generated content', async () => {
   const prisma = new FakePrisma();
   const service = new GenerationService(prisma as any);
+  (service as any).generateItems = async () => [
+    {
+      phrase: 'check in',
+      translation: '辦理登記',
+      blank: 'We need to ___ at the hotel.',
+      answer: 'check in',
+      options: ['check in', 'check out', 'turn in'],
+      exampleSentence: 'We can check in after three.',
+      quizPrompt: 'Complete the sentence.',
+      usage: 'Used when arriving at a hotel.',
+      register: 'neutral',
+      cefr: 'A2',
+    },
+    {
+      phrase: 'get around',
+      translation: '四處移動',
+      blank: 'The metro helps us ___ quickly.',
+      answer: 'get around',
+      options: ['get around', 'get away', 'get over'],
+      exampleSentence: 'It is easy to get around by train.',
+      quizPrompt: 'Complete the sentence.',
+      usage: 'Used for transportation.',
+      register: 'neutral',
+      cefr: 'B1',
+    },
+  ];
 
   const job = await service.createAndRunJob({ category: 'travel', difficulty: 'easy', batchSize: 2, triggerReason: 'manual' });
 

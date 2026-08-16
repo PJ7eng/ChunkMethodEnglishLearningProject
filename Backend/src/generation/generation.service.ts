@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface CreateGenerationJobDto {
@@ -17,35 +18,100 @@ interface GeneratedItem {
   options: string[];
   exampleSentence: string;
   quizPrompt: string;
+  usage?: string;
+  register?: string;
+  cefr?: string;
 }
 
+const CATEGORIES = new Set(['workplace', 'smalltalk', 'travel', 'emotions', 'random']);
+const DIFFICULTIES = new Set(['easy', 'medium', 'hard']);
+const PROMPT_VERSION = 'v1.0.0';
+
 @Injectable()
-export class GenerationService {
+export class GenerationService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(GenerationService.name);
+  private timer?: NodeJS.Timeout;
+  private polling = false;
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async createAndRunJob(dto: CreateGenerationJobDto): Promise<{ id: string; status: string; batchSize: number; generatedCount: number }> {
+  onModuleInit() {
+    if (process.env.GENERATION_WORKER_ENABLED === 'false') return;
+    this.timer = setInterval(() => void this.runNextPendingJob(), 5_000);
+    void this.runNextPendingJob();
+  }
+
+  onModuleDestroy() {
+    if (this.timer) clearInterval(this.timer);
+  }
+
+  async createJob(dto: CreateGenerationJobDto, createdById?: string) {
+    this.validateJob(dto);
+    const today = new Date().toISOString().slice(0, 10);
+    const dailyJobs = await this.prisma.generationJob.count({
+      where: { startedAt: { gte: new Date(`${today}T00:00:00.000Z`) } },
+    });
+    const dailyLimit = Number(process.env.GENERATION_DAILY_JOB_LIMIT || 20);
+    if (dailyJobs >= dailyLimit) throw new Error('Daily generation limit reached');
+
+    const idempotencyKey = createHash('sha256')
+      .update(`${createdById || 'system'}:${dto.category}:${dto.difficulty}:${dto.triggerReason}:${today}`)
+      .digest('hex');
+    const existing = await this.prisma.generationJob.findUnique({ where: { idempotencyKey } });
+    if (existing) return existing;
+    const job = await this.prisma.generationJob.create({
+      data: {
+        jobType: 'content-batch',
+        status: 'pending',
+        batchSize: Math.min(dto.batchSize, 50),
+        triggerReason: dto.triggerReason,
+        category: dto.category,
+        difficulty: dto.difficulty,
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        promptVersion: PROMPT_VERSION,
+        idempotencyKey,
+        createdById,
+      },
+    });
+    queueMicrotask(() => void this.runNextPendingJob());
+    return job;
+  }
+
+  async createAndRunJob(dto: CreateGenerationJobDto) {
+    this.validateJob(dto);
     const job = await this.prisma.generationJob.create({
       data: {
         jobType: 'content-batch',
         status: 'running',
         batchSize: dto.batchSize,
         triggerReason: dto.triggerReason,
+        category: dto.category,
+        difficulty: dto.difficulty,
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        promptVersion: PROMPT_VERSION,
       },
     });
+    return this.runJob(job.id, dto);
+  }
 
+  private async runJob(jobId: string, dto: CreateGenerationJobDto) {
     try {
+      await this.prisma.generationJob.update({
+        where: { id: jobId },
+        data: { status: 'running', startedAt: new Date() },
+      });
       const contentPoolItem = await this.prisma.contentPoolItem.create({
         data: {
           category: dto.category,
           difficulty: dto.difficulty,
           status: 'generating',
           qualityScore: 0,
+          generationJobId: jobId,
         },
       });
 
       const generatedItems = await this.generateItems(dto.category, dto.difficulty, Math.max(1, dto.batchSize));
+      if (!generatedItems.length) throw new Error('The model returned no valid content');
 
       for (const item of generatedItems) {
         const chunk = await this.prisma.chunk.create({
@@ -70,7 +136,7 @@ export class GenerationService {
           },
         });
 
-        await this.prisma.quizQuestion.create({
+        const quiz = await this.prisma.quizQuestion.create({
           data: {
             contentPoolItemId: contentPoolItem.id,
             prompt: item.quizPrompt,
@@ -79,27 +145,29 @@ export class GenerationService {
             status: 'active',
           },
         });
+
+        void quiz;
       }
 
       await this.prisma.contentPoolItem.update({
         where: { id: contentPoolItem.id },
         data: {
           status: 'pending_review',
-          qualityScore: 0.8,
+          qualityScore: this.qualityScore(generatedItems),
         },
       });
 
       await this.prisma.generationJob.update({
-        where: { id: job.id },
+        where: { id: jobId },
         data: { status: 'success', completedAt: new Date() },
       });
 
-      return { id: job.id, status: 'success', batchSize: dto.batchSize, generatedCount: generatedItems.length };
+      return { id: jobId, status: 'success', batchSize: dto.batchSize, generatedCount: generatedItems.length };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown generation error';
-      this.logger.error(`Generation job ${job.id} failed`, message);
+      this.logger.error(`Generation job ${jobId} failed`, message);
       await this.prisma.generationJob.update({
-        where: { id: job.id },
+        where: { id: jobId },
         data: {
           status: 'failed',
           completedAt: new Date(),
@@ -107,6 +175,36 @@ export class GenerationService {
         },
       });
       throw new Error(message);
+    }
+  }
+
+  private async runNextPendingJob() {
+    if (this.polling) return;
+    this.polling = true;
+    try {
+      const job = await this.prisma.generationJob.findFirst({
+        where: { status: 'pending' },
+        orderBy: { startedAt: 'asc' },
+      });
+      if (!job || !job.category || !job.difficulty) return;
+      const claimed = await this.prisma.generationJob.updateMany({
+        where: { id: job.id, status: 'pending' },
+        data: { status: 'running', startedAt: new Date() },
+      });
+      if (!claimed.count) return;
+      await this.runJob(job.id, {
+        category: job.category,
+        difficulty: job.difficulty,
+        batchSize: job.batchSize,
+        triggerReason: job.triggerReason,
+      });
+    } catch (error) {
+      this.logger.error(
+        'Generation worker poll failed',
+        error instanceof Error ? error.stack : String(error),
+      );
+    } finally {
+      this.polling = false;
     }
   }
 
@@ -120,20 +218,16 @@ export class GenerationService {
 
   private async generateItems(category: string, difficulty: string, batchSize: number): Promise<GeneratedItem[]> {
     const aiItems = await this.tryGenerateWithAi(category, difficulty, batchSize);
-    if (aiItems.length > 0) {
-      return aiItems;
-    }
-
-    return this.buildFallbackItems(category, difficulty, batchSize);
+    return this.validateItems(aiItems);
   }
 
   private async tryGenerateWithAi(category: string, difficulty: string, batchSize: number): Promise<GeneratedItem[]> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      return [];
+      throw new Error('OPENAI_API_KEY is not configured');
     }
 
-    const prompt = `Generate ${batchSize} language-learning content items for category ${category}, difficulty ${difficulty}. Return valid JSON only with this shape: {"items":[{"phrase":"...","translation":"...","pinyin":"...","blank":"...","answer":"...","options":["..."],"exampleSentence":"...","quizPrompt":"..."}]}`;
+    const prompt = `Generate ${batchSize} English chunks for Traditional Chinese learners. Category=${category}; difficulty=${difficulty}. Each item needs a natural phrase, Traditional Chinese translation, cloze sentence, exact answer, 3 plausible options containing the answer, natural example, quiz prompt, concise usage note, register, and CEFR. Avoid duplicates and unsafe content.`;
 
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -144,11 +238,45 @@ export class GenerationService {
         },
         body: JSON.stringify({
           model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-          temperature: 0.7,
+          temperature: 0.4,
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'chunk_batch',
+              strict: true,
+              schema: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  items: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      additionalProperties: false,
+                      required: ['phrase', 'translation', 'blank', 'answer', 'options', 'exampleSentence', 'quizPrompt', 'usage', 'register', 'cefr'],
+                      properties: {
+                        phrase: { type: 'string' },
+                        translation: { type: 'string' },
+                        blank: { type: 'string' },
+                        answer: { type: 'string' },
+                        options: { type: 'array', items: { type: 'string' }, minItems: 3, maxItems: 4 },
+                        exampleSentence: { type: 'string' },
+                        quizPrompt: { type: 'string' },
+                        usage: { type: 'string' },
+                        register: { type: 'string' },
+                        cefr: { type: 'string' },
+                      },
+                    },
+                  },
+                },
+                required: ['items'],
+              },
+            },
+          },
           messages: [
             {
               role: 'system',
-              content: 'You are a helpful language-learning content generator. Return compact JSON only.',
+              content: 'You are a senior ESL curriculum editor. Produce accurate, natural, safe learning content.',
             },
             {
               role: 'user',
@@ -165,59 +293,48 @@ export class GenerationService {
       const payload = await response.json() as any;
       const content = payload?.choices?.[0]?.message?.content ?? '';
       const parsed = JSON.parse(content);
+      const usage = payload?.usage;
+      if (usage) {
+        this.logger.log(`OpenAI tokens prompt=${usage.prompt_tokens || 0} completion=${usage.completion_tokens || 0}`);
+      }
       return Array.isArray(parsed?.items) ? parsed.items : [];
     } catch (error) {
-      this.logger.warn(`AI generation unavailable, falling back to local content. ${error instanceof Error ? error.message : error}`);
-      return [];
+      throw new Error(`AI generation failed: ${error instanceof Error ? error.message : error}`);
     }
   }
 
-  private buildFallbackItems(category: string, difficulty: string, batchSize: number): GeneratedItem[] {
-    const templates = [
-      {
-        phrase: `${category} starter`,
-        translation: `A practical ${difficulty} phrase for ${category}`,
-        pinyin: 'jiàn shì',
-        blank: 'I am ___ for this lesson',
-        answer: 'ready',
-        options: ['ready', 'busy', 'late'],
-        exampleSentence: `This is a useful example for ${category}.`,
-        quizPrompt: `Choose the best translation for the phrase`,
-      },
-      {
-        phrase: `${category} focus`,
-        translation: `A focused ${difficulty} chunk for ${category}`,
-        pinyin: 'zhǔ yì',
-        blank: 'We should stay ___',
-        answer: 'calm',
-        options: ['calm', 'loud', 'fast'],
-        exampleSentence: `We can use this in a ${category} conversation.`,
-        quizPrompt: `Which answer best fits the blank?`,
-      },
-      {
-        phrase: `${category} routine`,
-        translation: `A repeatable ${difficulty} phrase for ${category}`,
-        pinyin: 'cháng shǐ',
-        blank: 'Let us ___ this task',
-        answer: 'repeat',
-        options: ['repeat', 'ignore', 'pause'],
-        exampleSentence: `This phrase is great for daily ${category} practice.`,
-        quizPrompt: `Pick the correct completion for the sentence`,
-      },
-    ];
+  private validateJob(dto: CreateGenerationJobDto) {
+    if (!CATEGORIES.has(dto.category)) throw new Error('Unsupported category');
+    if (!DIFFICULTIES.has(dto.difficulty)) throw new Error('Unsupported difficulty');
+    if (!Number.isInteger(dto.batchSize) || dto.batchSize < 1 || dto.batchSize > 50) {
+      throw new Error('batchSize must be between 1 and 50');
+    }
+  }
 
-    return Array.from({ length: batchSize }, (_, index) => {
-      const template = templates[index % templates.length];
-      return {
-        phrase: `${template.phrase}-${index + 1}`,
-        translation: template.translation,
-        pinyin: template.pinyin,
-        blank: template.blank,
-        answer: template.answer,
-        options: template.options,
-        exampleSentence: template.exampleSentence,
-        quizPrompt: template.quizPrompt,
-      };
+  private validateItems(items: GeneratedItem[]): GeneratedItem[] {
+    const seen = new Set<string>();
+    return items.filter((item) => {
+      const phrase = item.phrase?.trim().toLowerCase();
+      const options = Array.isArray(item.options) ? item.options : [];
+      if (
+        !phrase ||
+        seen.has(phrase) ||
+        !item.translation?.trim() ||
+        !item.exampleSentence?.trim() ||
+        !item.blank?.includes('___') ||
+        options.length < 3 ||
+        !options.some((option) => option.toLowerCase() === item.answer?.toLowerCase())
+      ) {
+        return false;
+      }
+      seen.add(phrase);
+      return true;
     });
+  }
+
+  private qualityScore(items: GeneratedItem[]): number {
+    if (!items.length) return 0;
+    const complete = items.filter((item) => item.usage && item.register && item.cefr).length;
+    return Number((0.7 + (complete / items.length) * 0.25).toFixed(2));
   }
 }
