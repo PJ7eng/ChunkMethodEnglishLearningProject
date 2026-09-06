@@ -34,7 +34,7 @@ const seedChunks = [
     blank: 'She ___ before giving the presentation.',
     answer: 'got cold feet',
     options: ['got cold feet', 'hit the road', 'broke the ice'],
-    examples: ['He got cold feet right before the interview.'],
+    examples: ['He got cold feet right before the interview.', 'Do not get cold feet before your big presentation.'],
   },
   {
     phrase: 'Hit the road',
@@ -170,10 +170,48 @@ const seedChunks = [
   },
 ];
 
+function phraseKey(phrase: string): string {
+  return phrase.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function metadata(chunk: (typeof seedChunks)[number]) {
+  const cefr = chunk.difficulty === 'easy' ? 'A2' : chunk.difficulty === 'medium' ? 'B1' : 'B2';
+  return {
+    phraseKey: phraseKey(chunk.phrase),
+    usage: `A common ${chunk.category} expression meaning “${chunk.translation}”.`,
+    register: 'neutral',
+    cefr,
+  };
+}
+
 async function main(): Promise<void> {
   for (const chunkData of seedChunks) {
-    const existing = await prisma.chunk.findUnique({ where: { phrase: chunkData.phrase } });
-    if (existing) continue;
+    const existing = await prisma.chunk.findUnique({ where: { phraseKey: phraseKey(chunkData.phrase) } });
+    if (existing) {
+      await prisma.$transaction([
+        prisma.chunk.update({
+          where: { id: existing.id },
+          data: {
+            phrase: chunkData.phrase,
+            translation: chunkData.translation,
+            pinyin: chunkData.pinyin,
+            blank: chunkData.blank,
+            answer: chunkData.answer,
+            options: chunkData.options,
+            ...metadata(chunkData),
+          },
+        }),
+        prisma.chunkExample.deleteMany({ where: { chunkId: existing.id } }),
+      ]);
+      await prisma.chunkExample.createMany({
+        data: chunkData.examples.map((sentence, orderIndex) => ({
+          chunkId: existing.id,
+          sentence,
+          orderIndex,
+        })),
+      });
+      continue;
+    }
 
     const poolItem = await prisma.contentPoolItem.create({
       data: {
@@ -188,6 +226,7 @@ async function main(): Promise<void> {
       data: {
         contentPoolItemId: poolItem.id,
         phrase: chunkData.phrase,
+        ...metadata(chunkData),
         translation: chunkData.translation,
         pinyin: chunkData.pinyin,
         category: chunkData.category,
@@ -200,7 +239,7 @@ async function main(): Promise<void> {
     });
 
     await prisma.chunkExample.createMany({
-      data: chunkData.examples.map((sentence) => ({ chunkId: chunk.id, sentence })),
+      data: chunkData.examples.map((sentence, orderIndex) => ({ chunkId: chunk.id, sentence, orderIndex })),
     });
 
     const quiz = await prisma.quizQuestion.create({

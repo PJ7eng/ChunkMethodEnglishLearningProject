@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { C } from '../../constants/designToken';
 import { LoginBtn, Input } from '../../components';
-import { registerUser, validateEmail, validatePassword } from '../../api';
+import { registerUser, saveAuthSession, validateEmail, validatePassword } from '../../api';
 import { AuthScreenProps } from '../../types/auth';
 
 interface RegisterProps {
@@ -49,6 +49,7 @@ export function RegisterScreen({
       if (!data.token || !data.user) {
         throw new Error(data.message || 'Registration failed');
       }
+      await saveAuthSession(data);
       onAuthSuccess(data.token, data.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -59,12 +60,14 @@ export function RegisterScreen({
 
   const pageStyle: React.CSSProperties = {
     backgroundColor: C.bg,
-    minHeight: '100vh',
+    minHeight: '100dvh',
+    maxHeight: '100dvh',
+    overflowY: 'auto',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: '0 20px',
+    justifyContent: 'flex-start',
+    padding: 'calc(var(--safe-top) + 20px) calc(var(--safe-right) + 20px) calc(var(--safe-bottom) + 20px) calc(var(--safe-left) + 20px)',
     boxSizing: 'border-box',
   };
 
@@ -74,6 +77,7 @@ export function RegisterScreen({
     display: 'flex',
     flexDirection: 'column',
     gap: '12px',
+    margin: 'auto 0',
   };
 
   const titleStyle: React.CSSProperties = {

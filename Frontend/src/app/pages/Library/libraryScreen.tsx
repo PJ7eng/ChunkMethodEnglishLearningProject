@@ -94,7 +94,7 @@ export function LibraryScreen({
         flexDirection: "column",
       }}
     >
-      <div style={{ padding: "36px 20px 10px", flexShrink: 0 }}>
+      <div style={{ padding: "calc(var(--safe-top) + 20px) 20px 10px", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
           <BackButton onClick={onBack} />
         </div>

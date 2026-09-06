@@ -1,10 +1,92 @@
 # ChunkMaster 開發進度總結
 
-> **更新日期**：2026-08-16  
+> **更新日期**：2026-09-06
 > **產品定位**：以 chunk（片語／語塊）為單位的英語學習 App  
-> **技術棧**：Frontend — React + Vite + TypeScript + PWA／Capacitor Android（待建）；Backend — NestJS + Prisma + PostgreSQL  
-> **發布目標**：Google Play Android Production；Web 保留學習入口及 Admin 後台  
-> **當前階段**：Web／Backend 核心與部署骨架完成；Google Play 路線進入 M1 發布身份、域名與雲端 staging
+> **技術棧**：Frontend — React + Vite + TypeScript + PWA／Capacitor Android（待建）；Backend — NestJS + Prisma + PostgreSQL；LLM — DeepSeek Chat Completions（本機已接通）  
+> **發布目標**：私下分發 signed Android APK（獨立主畫面圖示）；Web 保留學習入口及 Admin 後台。不上架 Google Play。  
+> **當前階段**：本機 Admin → DeepSeek 生成 → 待審 → 核准 → 學習端可用，已實測成功。下一里程碑仍是 [V1_PLAN.md](V1_PLAN.md) **M1**（發布身份、域名、雲端 staging）。尚未建立 Capacitor `android/`，正式 300–500 條審核內容尚未量產。
+
+---
+
+### 2026-09-06 — 本機 DeepSeek 生成管線已接通並實測
+- 完成：
+  - 本機 Docker PostgreSQL 已運行；`chunklearning` 庫含 3 條 migration（含 `20260817190000_content_generation_v1`），schema 為最新。
+  - Generation 改為可設定供應商：預設 `AI_BASE_URL=https://api.deepseek.com/chat/completions`。DeepSeek 使用 `response_format: json_object`（不支援 OpenAI `json_schema`）；打 `api.openai.com` 時仍用 json_schema。
+  - API key 讀 `AI_API_KEY`／`DEEPSEEK_API_KEY`／`OPENAI_API_KEY`（本機把 DeepSeek key 放在 `OPENAI_API_KEY`）。模型讀 `AI_MODEL` 或 `OPENAI_MODEL`（已用 `deepseek-v4-flash`／`deepseek-v4-pro` 驗證）。
+  - Prompt `v1.2.0` 含 json 範例；未開 DeepSeek thinking。逾時預設 60s。
+  - 使用者以 super_admin 在 Web `/admin` 建立 job，真實模型產出進 `pending_review`，核准後學習端可用。
+- 修改文件：
+  - `Backend/src/generation/generation.service.ts`、`Backend/tests/generation.service.test.ts`、`Backend/.env.example`
+- 驗證命令與結果：
+  - Backend generation unit／flow tests：通過（含 DeepSeek 走 json_object、OpenAI URL 走 json_schema）。
+  - 本機 Admin 真實 DeepSeek 批次：成功（待審有內容，可核准）。
+  - 首次誤把 DeepSeek key 打到 `api.openai.com` 得到 403；改 URL 後排除。
+- Artifact／URL：
+  - 僅本機；無公開 API／APK。金鑰只在 `Backend/.env`，不得提交 Git。
+- 給下一個 Agent 的已知陷阱：
+  - **冪等：** 同一使用者、同一 UTC 日、同一 `category`+`difficulty`+`triggerReason`（前端寫死 `admin-v1-batch`）會直接退回舊 job，**失敗的也不重跑**。`POST /admin/generation/jobs` 在 3–10ms 回 201 **不代表**正在生成。要重試必須換分類或難度，或先處理 DB 裡的舊 `GenerationJob`。
+  - HTTP 成功只表示 job 已收下；模型在 worker 背景跑。成敗看 `GenerationService` log 或 `GET /admin/generation/jobs` 的 `status`／`errorMessage`。
+  - 待審未核准就關 Nest：資料仍在 Postgres。`docker compose down -v` 會清掉。中途殺掉 `running` job 可能卡住，worker 重啟只撈 `pending`。
+  - Admin 編輯仍是一連串 `window.prompt`；畫面不會自動刷新待審。
+  - Resend／正式郵件、Sentry 雲端、Capacitor Android 仍未做。
+- 下一步（見第六節）：
+  - 不要再把「接通 LLM」當未完成項。本機可繼續用 Admin 量產並人工審核內容。
+  - 發布路線下一項仍是 M1：application ID、顯示名稱、可從外網連的 HTTPS API，再 Capacitor APK。
+
+---
+
+### 2026-09-01 — 發布目標改為私下分發 APK
+- 完成：
+  - 確認 V1 不上架 Google Play；學習者端必須是 Capacitor 包裝的獨立 Android 圖示，以 signed APK 側載給自己與熟人。
+  - 重寫 [V1_PLAN.md](V1_PLAN.md)：取消 Play Console、AAB、Data safety、Closed testing 與 Production staged rollout。
+  - 新里程碑收斂為 M1 雲端 staging → M2 圖示與 Debug 安裝 → M3 native auth → M4 實機 UX → M5 內容與邀請說明 → M6 signed APK 分發。
+  - 同步 [README.md](README.md)、[DEPLOYMENT.md](DEPLOYMENT.md)、[DATA_INVENTORY.md](DATA_INVENTORY.md)。
+- 修改文件：
+  - `docs/V1_PLAN.md`、`docs/README.md`、`docs/progress.md`、`docs/DEPLOYMENT.md`、`docs/DATA_INVENTORY.md`
+- 驗證命令與結果：
+  - 僅文件變更；未跑產品測試。
+- Artifact／URL：
+  - 無新 APK、無公開 URL。
+- 未完成或阻礙：
+  - application ID、App 顯示名稱、網域與雲端帳號仍未確認。
+  - 尚未執行 Capacitor init。
+- 下一步：
+  - 固定 M1 身份與可從外網連到的 HTTPS API，再建立 `Frontend/android/`。
+
+---
+
+### 2026-08-17 — V1 本地先行工程
+- 完成：
+  - 內容模型加入 `usage`、`register`、`cefr`、正規化 `phraseKey` 及有順序的多例句；建立 `20260817190000_content_generation_v1` migration。
+  - Generation 加入有限重試、timeout、失敗清理、資料庫全域去重，以及 provider／model／token／成本持久化；Admin 可編輯及審核完整內容欄位。
+  - 建立 Web／Native `AuthStorage` 與 platform 邊界；Native stub 只使用記憶體，未將 refresh token 寫入 localStorage。Production／staging build 禁止缺少 API URL 或指向 localhost，native production bundle 排除 Admin。
+  - 改善 safe area、小螢幕／鍵盤、網路錯誤、郵箱驗證／密碼重設狀態；未實作的 Reminder／Haptics 暫不顯示為可用。
+  - Backend 測試擴充至 Auth session、refresh rotation/replay、logout、RBAC、SRS、Generation 及 Admin；Frontend 加入 Vitest 與 4 條 Playwright learner smoke。
+  - CI 加入前後端 dependency audit、Frontend unit/smoke 與 Gitleaks secret scan。
+  - 完成 Privacy、Terms、Account deletion、Support 及 [Data inventory](DATA_INVENTORY.md) 發布前草稿；未知法律及供應商資料均保留為發布阻塞。
+- 修改文件：
+  - `Backend/prisma/`、`Backend/src/admin/`、`Backend/src/generation/`、`Backend/src/content-pool/`、`Backend/tests/`
+  - `Frontend/src/app/`、`Frontend/src/styles/`、`Frontend/tests/`、`Frontend/public/`、Frontend build/test 設定
+  - `.github/workflows/ci.yml`、`docs/DATA_INVENTORY.md`
+- 驗證命令與結果：
+  - `npx prisma generate && npx prisma validate`：通過。
+  - `npm run typecheck && npm test && npm run build`（Backend）：通過，unit／service tests 22/22。
+  - `npm run typecheck && npm test && npm run build`（Frontend，使用非 localhost 測試 API URL）：通過，Vitest 5/5（含離線及網路失敗）。
+  - `npm run build:native:production`：通過；bundle 搜尋不到 Admin 入口或 `chunk_auth_*` localStorage key。
+  - `npm run test:smoke`：Playwright 8/8 通過，以桌面及 360×640 Android viewport 覆蓋註冊／登入、學習／Review、Notes、匯出／刪除／登出。
+  - 前後端 `npm audit --audit-level=high --registry=https://registry.npmjs.org`：0 vulnerabilities。
+  - production 缺少 `VITE_API_BASE_URL` 的負向建置測試：按設計失敗。
+- Artifact／URL：
+  - 本機 `Frontend/dist`（native production assets；非 APK）。
+  - 尚無公開 URL、Android 工程、signed APK 或外部服務資源。
+- 未完成或阻礙：
+  - 本機 Docker Desktop／PostgreSQL 未運行；`prisma migrate deploy` 與 PostgreSQL E2E 因 `localhost:5432` 無法連線而未通過執行驗證。
+  - 本機未安裝 Gitleaks；secret scan 已加入 CI，但尚待 CI 執行證據。
+  - 未使用 OpenAI、Resend、Sentry 或任何雲端帳號；AI 測試使用 mock，不能計入正式 300–500 條內容。
+  - 正式 application ID、App 顯示名稱及網域未確認，因此未執行 Capacitor init。
+- 下一步：
+  - 啟動本機 PostgreSQL 後套用 migration、執行 seed 與 E2E，先處理任何正規化後重複 phrase。
+  - 確認 M1 發布身份與域名，再建立 staging 及 Capacitor Android 工程。
 
 ---
 
@@ -127,11 +209,12 @@
 | DELETE | `/notes/:id` | 單筆刪除 |
 
 ### 7. Generation（`/admin/generation`，需 content_admin）
-- HTTP 只建立 job；PostgreSQL job queue 在背景處理
-- OpenAI 使用 JSON Schema 結構化輸出；無 API key 或模型失敗時 job 失敗，不使用模板冒充內容
+- HTTP 只建立 job；API 行程內 worker 每 5 秒撈 `pending`（`GENERATION_WORKER_ENABLED`）
+- **本機已接通 DeepSeek**（`AI_BASE_URL` + `json_object`）。無 key 或模型失敗時 job 失敗，不使用模板冒充內容
+- 打 OpenAI 相容 URL 時仍可用 `json_schema`；由 `AI_JSON_MODE` 或是否 `deepseek.com` 決定
 - 支援冪等鍵、批次 1–50、每日 job 上限、category／difficulty 白名單
-- 自動檢查必填欄位、填空、答案／選項及批次重複
-- 生成內容只進 `pending_review`，不會直接供學習者使用
+- 自動檢查必填欄位、填空、答案／選項、CEFR 及批次／全域 `phraseKey` 去重
+- 生成內容只進 `pending_review`，核准後才 `published`，學習 API 只讀已發布內容
 
 ### 8. Admin（`/admin`）
 - Dashboard：用戶、待審、已發布、已下架及失敗 job 統計
@@ -171,14 +254,16 @@ flowchart LR
   ReviewUI[SRS Review] --> ReviewAPI["/progress/review"]
   AdminUI[Admin審核] --> AdminAPI["/admin"]
   AdminAPI --> GenAPI["/admin/generation"]
-  GenAPI --> OpenAI[OpenAI API]
+  GenAPI --> DeepSeek[DeepSeek Chat Completions]
 ```
 
-**一句話**：ChunkMaster 已具備學習者閉環、帳號安全、SRS、AI 內容生產、人工審核與部署骨架，現正進入內容準備及發布驗收。
+**一句話**：本機學習閉環、Admin 審核與 DeepSeek 教材生成已打通；V1 發布目標仍是私下分發獨立 Android APK，雲端與 Capacitor 尚未開始。
 
 ---
 
 ## 四、工程驗證現況
+
+2026-09-04～06 本機：Docker Postgres 可連線；DeepSeek 真實生成進待審並可核准。Generation 相關單元測試通過。
 
 2026-08-16 本機驗證：
 
@@ -197,16 +282,15 @@ flowchart LR
 ## 五、尚待完成
 
 ### 1. V1 發布工作
-- 確認 Play Console 帳號類型、application ID、App／開發者名稱、網域、支援及隱私聯絡資料
-- 建立 Cloudflare Pages、Railway、Neon、Resend、OpenAI、Sentry 的 staging／production 資源
-- 建立 Capacitor Android 工程，完成 native auth、安全儲存、App Links、notification、back button、safe area 與網路狀態
-- 建立 signed AAB、Play App Signing、Android CI、實機矩陣及 Pre-launch report
-- 完成 Data safety、App content、Privacy、Account deletion 與 Store listing
-- 若帳號適用，完成至少 12 名 tester 連續 14 天 Closed testing，再申請 Production access
-- 準備並人工審核首批 300–500 個 chunks
-- 進行 Play Internal／Closed Beta，完成核心流程與內容品質修正
+- 確認 application ID、App 顯示名稱、網域或 HTTPS 預設網址、支援聯絡方式（不要建立 Play Console）
+- 建立 Cloudflare Pages、Railway、Neon、Resend、**DeepSeek**、Sentry 的 staging／production 資源（LLM 不要再預設成必須開 OpenAI 帳號）
+- 建立 Capacitor Android 工程、獨立 launcher icon，完成 native auth、安全儲存、back button、safe area 與網路狀態
+- 建立 signed release APK、固定 keystore、versionCode 遞增及給熟人的安裝／升級說明
+- **本機生成管線已通**；尚需以 Admin 人工審核並累積首批 300–500 個 chunks。分發環境不得外洩未審內容
+- 在實機完成核心流程與內容品質修正
 - 執行 Neon 備份還原及應用回滾演練
-- 完成正式隱私政策、條款、支援方式及狀態頁
+- 補齊給受邀者的隱私、條款、支援與刪除說明；不填 Play Data safety 或 Store listing
+- 可選：失敗 job 允許重試（目前冪等會擋住同一天同一參數）；Admin 顯示 job `errorMessage` 與自動刷新待審
 
 ### 2. 測試與品質
 - 前端 Playwright：登入、學習、Review、Notes、Admin
@@ -220,16 +304,16 @@ flowchart LR
 - 完整離線寫入與同步衝突
 - 原生 iOS、社交與付費功能
 
-> Android 原生包裝、本地提醒、haptic、App Links 及 native secure storage 已改為 Google Play V1 必做，不屬於 V1.1。
+> 獨立 Android 圖示、Capacitor 包裝、signed APK 及 native secure storage 為 V1 必做，不屬於 V1.1。提醒與 haptic 僅在 Settings 顯示為可用時必做。Google Play 上架已取消。
 
 ---
 
 ## 六、下一階段衝刺焦點
 
-1. 確認 Play Console 帳號、application ID、App 身份、網域與聯絡資料
-2. 建立 staging 雲端資源並完成部署 smoke test
-3. M1 通過後建立 Capacitor Android 工程
-4. 以 Admin 工作流生產、審核首批 300–500 個 chunks
-5. 依 [V1 計劃](V1_PLAN.md) 完成 AAB、Play 測試與 Production staged rollout
+1. **不要重做 LLM 接線**，除非要改模型、重試冪等或 Admin UX。本機 DeepSeek 已驗證。
+2. 可並行：用 `/admin` 繼續生成並人工核准，累積面向熟人的題庫（目標 300–500，品質優先）。
+3. 發布主線仍是 M1：application ID、App 顯示名稱、可從外網連的 HTTPS API／網域。
+4. M1 通過後建立 Capacitor Android 工程與獨立圖示，再依 [V1 計劃](V1_PLAN.md) 做 signed APK。
+5. 雲端部署時把 DeepSeek key 與 `AI_BASE_URL` 放進後端 Secret，前端／APK 不得帶入。
 
-V1 公開發布前不得跳過人工內容審核、資料備份、權限驗證及回滾演練。
+分發給他人前不得跳過人工內容審核、資料備份、權限驗證及回滾演練。

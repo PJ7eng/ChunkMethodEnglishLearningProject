@@ -1,7 +1,42 @@
+import { authStorage, type AuthSession } from "./authStorage";
+import { isNativePlatform } from "./platform";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
-function getToken(): string | null {
-  return localStorage.getItem("chunk_auth_token");
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+    readonly kind: "offline" | "network" | "http" = "http",
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+function networkError(error: unknown): ApiError {
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    return new ApiError("目前離線。請檢查網路連線後再試一次。", undefined, "offline");
+  }
+  if (error instanceof ApiError) return error;
+  return new ApiError("無法連線至服務。請稍後再試。", undefined, "network");
+}
+
+export async function saveAuthSession(response: AuthResponse): Promise<AuthSession> {
+  if (!response.token || !response.user) {
+    throw new ApiError(response.message || "Authentication failed");
+  }
+  const session: AuthSession = {
+    accessToken: response.token,
+    refreshToken: response.refreshToken,
+    user: response.user,
+  };
+  await authStorage.setSession(session);
+  return session;
+}
+
+export function clearAuthSession() {
+  return authStorage.clear();
 }
 
 async function request<T>(
@@ -9,29 +44,51 @@ async function request<T>(
   init?: RequestInit,
   allowRefresh = true,
 ): Promise<T> {
-  const token = getToken();
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers || {}),
-    },
-  });
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    throw networkError(undefined);
+  }
+
+  const token = await authStorage.getAccessToken();
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      credentials: isNativePlatform ? "omit" : "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.headers || {}),
+      },
+    });
+  } catch (error) {
+    throw networkError(error);
+  }
 
   if (response.status === 401 && allowRefresh && path !== "/auth/refresh") {
-    const refreshed = await fetch(`${API_BASE_URL}/auth/refresh`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: "{}",
-    });
+    const refreshToken = await authStorage.getRefreshToken();
+    let refreshed: Response;
+    try {
+      refreshed = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: "POST",
+        credentials: isNativePlatform ? "omit" : "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(isNativePlatform ? { refreshToken } : {}),
+      });
+    } catch (error) {
+      throw networkError(error);
+    }
     if (refreshed.ok) {
       const auth = (await refreshed.json()) as AuthResponse;
-      if (auth.token) localStorage.setItem("chunk_auth_token", auth.token);
+      if (auth.token) {
+        if (isNativePlatform && auth.user) {
+          await saveAuthSession(auth);
+        } else {
+          await authStorage.setAccessToken(auth.token);
+        }
+      }
       return request<T>(path, init, false);
     }
+    await authStorage.clear();
   }
 
   if (!response.ok) {
@@ -44,7 +101,10 @@ async function request<T>(
       const text = await response.text().catch(() => "");
       if (text) message = text;
     }
-    throw new Error(typeof message === "string" ? message : "Request failed");
+    throw new ApiError(
+      typeof message === "string" ? message : "Request failed",
+      response.status,
+    );
   }
 
   if (response.status === 204) return undefined as T;
@@ -63,6 +123,7 @@ export interface AuthResponse {
   success: boolean;
   message: string;
   token?: string;
+  refreshToken?: string;
   user?: AuthUser;
 }
 
@@ -71,10 +132,14 @@ export interface ChunkResponse {
   phrase: string;
   translation: string;
   pinyin: string;
+  usage?: string;
+  register?: string;
+  cefr?: string;
   category: string;
   options: string[];
   answer: string;
   examples: string[];
+  exampleDetails?: Array<{ sentence: string; translation?: string }>;
   blank: string;
   needsReview: boolean;
   mastered: boolean;
@@ -167,10 +232,15 @@ export async function getCurrentUser() {
 }
 
 export async function logoutUser() {
-  return request<{ success: boolean }>("/auth/logout", {
-    method: "POST",
-    body: "{}",
-  });
+  const refreshToken = await authStorage.getRefreshToken();
+  try {
+    return await request<{ success: boolean }>("/auth/logout", {
+      method: "POST",
+      body: JSON.stringify(isNativePlatform ? { refreshToken } : {}),
+    });
+  } finally {
+    await authStorage.clear();
+  }
 }
 
 export async function requestPasswordReset(email: string) {
@@ -181,10 +251,12 @@ export async function requestPasswordReset(email: string) {
 }
 
 export async function resetPassword(token: string, password: string) {
-  return request<{ success: boolean; message: string }>("/auth/reset-password", {
+  const result = await request<{ success: boolean; message: string }>("/auth/reset-password", {
     method: "POST",
     body: JSON.stringify({ token, password }),
   });
+  await authStorage.clear();
+  return result;
 }
 
 export async function verifyEmail(token: string) {
@@ -199,10 +271,12 @@ export async function exportAccount() {
 }
 
 export async function deleteAccount(password: string) {
-  return request<{ success: boolean }>("/auth/account", {
+  const result = await request<{ success: boolean }>("/auth/account", {
     method: "DELETE",
     body: JSON.stringify({ password }),
   });
+  await authStorage.clear();
+  return result;
 }
 
 export async function getChunks(category?: string) {
@@ -236,14 +310,32 @@ export interface AdminContentItem {
   status: string;
   qualityScore: number;
   updatedAt: string;
+  generationJob?: {
+    provider?: string | null;
+    model?: string | null;
+    promptVersion?: string | null;
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCost: number;
+    retryCount: number;
+  } | null;
   chunks: Array<{
     id: string;
     phrase: string;
     translation: string;
+    pinyin?: string | null;
+    usage?: string | null;
+    register?: string | null;
+    cefr?: string | null;
     blank: string;
     answer: string;
     options: string[];
-    examples: Array<{ id: string; sentence: string }>;
+    examples: Array<{
+      id: string;
+      sentence: string;
+      translation?: string | null;
+      orderIndex: number;
+    }>;
   }>;
 }
 
@@ -252,8 +344,17 @@ export function getAdminDashboard() {
     users: number;
     pending: number;
     published: number;
+    rejected: number;
     retired: number;
     failedJobs: number;
+    recentJobs: Array<{
+      id: string;
+      status: string;
+      model?: string | null;
+      inputTokens: number;
+      outputTokens: number;
+      estimatedCost: number;
+    }>;
   }>("/admin/dashboard");
 }
 
@@ -280,10 +381,14 @@ export function editAdminChunk(
   patch: {
     phrase?: string;
     translation?: string;
+    pinyin?: string | null;
+    usage?: string;
+    register?: string;
+    cefr?: string;
     blank?: string;
     answer?: string;
     options?: string[];
-    examples?: string[];
+    examples?: Array<string | { sentence: string; translation?: string | null }>;
   },
 ) {
   return request<AdminContentItem>(
@@ -292,16 +397,33 @@ export function editAdminChunk(
   );
 }
 
+export interface GenerationJob {
+  id: string;
+  status: string;
+  errorMessage?: string | null;
+  category?: string | null;
+  difficulty?: string | null;
+  batchSize: number;
+}
+
 export function createGenerationJob(data: {
   category: string;
   difficulty: string;
   batchSize: number;
   triggerReason: string;
 }) {
-  return request<{ id: string; status: string }>("/admin/generation/jobs", {
+  return request<GenerationJob>("/admin/generation/jobs", {
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+export function getGenerationJobs() {
+  return request<GenerationJob[]>("/admin/generation/jobs");
+}
+
+export function getGenerationJob(id: string) {
+  return request<GenerationJob>(`/admin/generation/jobs/${encodeURIComponent(id)}`);
 }
 
 export async function getTodayProgress() {

@@ -1,11 +1,11 @@
 # ChunkMaster V1 專案進度
 
-> 更新日期：2026-08-16  
-> 當前狀態：Web／Backend 核心與部署骨架已完成；V1 最終目標已改為 Google Play Android 正式發布，目前進入 M1 發布身份、域名與雲端 staging。
+> 更新日期：2026-09-01  
+> 當前狀態：Web／Backend 核心與部署骨架已完成；V1 最終目標改為私下分發、帶獨立主畫面圖示的 signed Android APK，不上架 Google Play。目前進入 M1 發布身份、域名與雲端 staging。
 
 ## 文件索引
 
-- [V1 完整計劃](V1_PLAN.md)：產品、工程、內容及發布的分階段計劃。
+- [V1 完整計劃](V1_PLAN.md)：產品、工程、內容及私下分發 APK 的分階段計劃。
 - [部署手冊](DEPLOYMENT.md)：Cloudflare Pages、Railway、Neon 的部署、回滾與 smoke test。
 - [詳細開發進度](progress.md)：前後端、API、驗證結果與下一階段工作。
 - [後端內容規格](../Backend/docs/standardBook.md)：內容池及題庫的早期設計資料。
@@ -124,24 +124,22 @@ npm run dev
 
 ## 尚待完成
 
-目前依 [Google Play V1 計劃 M1](V1_PLAN.md#6-m1發布身份域名與雲端-staging) 推進：
+目前依 [V1 計劃 M1](V1_PLAN.md#6-m1發布身份域名與雲端-staging) 推進：
 
-- 確認 Play Console 個人／組織帳號、application ID、App 名稱、開發者名稱、網域及支援郵箱。
+- 確認 application ID、App 顯示名稱、網域或 HTTPS 預設網址、支援聯絡方式。不要建立 Play Console。
 - 建立 Cloudflare Pages、Railway、Neon、Resend、OpenAI、Sentry 的 staging／production 資源。
-- 完成 staging smoke test 後，以 Capacitor 建立 Android 工程，處理 native auth、App Links、通知、back button 與安全儲存。
-- 準備並人工審核首批 300–500 個 chunks。
-- 完成 Play Console Data safety、Privacy、Account deletion、Store listing、AAB 簽署及 Pre-launch report。
-- 若 Play 帳號適用，執行至少 12 名 tester 連續 14 天的 Closed testing。
+- 完成 staging smoke test 後，以 Capacitor 建立 Android 工程、獨立 launcher icon、native auth、返回鍵與安全儲存。
+- 準備並人工審核首批 300–500 個 chunks；給他人的 release 環境不得外洩未審內容。
+- 產出 signed release APK、安裝／覆蓋升級說明，並以同一 keystore 分發給熟人。
 - 執行 Neon 備份還原演練及應用回滾演練。
-- 加入前端 Playwright、a11y、弱網與主要 Admin 流程自動測試。
-- 完成正式隱私政策、服務條款、支援聯絡方式及狀態頁。
-- 通過 Go/No-Go 後以 staged rollout 發布 Google Play Production，並持續監控前 48 小時。
+- 加入前端 Playwright、弱網與主要 Admin 流程自動測試（能做多少做多少，不為商店審核擴矩陣）。
+- 補齊給受邀者看的隱私、條款、支援與刪除說明；不填 Play Data safety。
 
 ## 已知限制
 
 - SRS 為第一版簡化算法，尚不是完整 FSRS。
 - PWA 只提供基本讀取快取，不支援離線寫入與衝突同步。
-- Capacitor Android、Daily Reminder、原生 haptic、App Links 與 native secure storage 尚未實作，但均為 Google Play V1 必做。
+- Capacitor Android、獨立 launcher icon、signed APK 與 native secure storage 尚未實作，均為 V1 必做。Daily Reminder 與 haptic 僅在 Settings 顯示為可用時必做；已驗證 App Links 不是 V1 阻擋項。
 - 聽力目前主要依賴 Web Speech；跟讀評分及 AI 情境對話不屬 V1。
 - Generation worker 目前與 API 使用相同程式映像；正式拆成獨立 worker 前，API 應保持單 replica。
 - 正式環境不得執行 seed；內容只能經 Admin 生產及人工核准。

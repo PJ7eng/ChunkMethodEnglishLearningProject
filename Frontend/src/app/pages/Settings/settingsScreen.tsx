@@ -15,48 +15,55 @@ export function SettingsScreen({
   onPreferencesChange,
 }: SettingsScreenProps) {
   const [sound, setSound] = useState(true);
-  const [remind, setRemind] = useState(true);
-  const [haptic, setHaptic] = useState(false);
   const [autoNext, setAutoNext] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [preferenceMessage, setPreferenceMessage] = useState<string | null>(null);
   const [accountMessage, setAccountMessage] = useState<string | null>(null);
 
   useEffect(() => {
     getPreferences()
       .then((p) => {
         setSound(p.soundEnabled);
-        setRemind(p.reminderEnabled);
-        setHaptic(p.hapticEnabled);
         setAutoNext(p.autoNextEnabled);
         onPreferencesChange?.(p);
       })
-      .catch(() => undefined);
+      .catch((error) =>
+        setPreferenceMessage(
+          error instanceof Error ? error.message : "無法載入偏好設定",
+        ),
+      );
   }, []);
 
   async function patch(partial: Partial<PreferencesResponse>) {
     setSaving(true);
+    setPreferenceMessage(null);
     try {
       const next = await updatePreferences(partial);
       setSound(next.soundEnabled);
-      setRemind(next.reminderEnabled);
-      setHaptic(next.hapticEnabled);
       setAutoNext(next.autoNextEnabled);
       onPreferencesChange?.(next);
-    } catch {
-      /* keep local */
+    } catch (error) {
+      setPreferenceMessage(
+        error instanceof Error ? error.message : "無法儲存偏好設定",
+      );
     } finally {
       setSaving(false);
     }
   }
 
   async function downloadAccount() {
-    const data = await exportAccount();
-    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "chunkmaster-account.json";
-    anchor.click();
-    URL.revokeObjectURL(url);
+    try {
+      setAccountMessage(null);
+      const data = await exportAccount();
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "chunkmaster-account.json";
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setAccountMessage(error instanceof Error ? error.message : "匯出帳號失敗");
+    }
   }
 
   async function removeAccount() {
@@ -77,7 +84,7 @@ export function SettingsScreen({
         overflowY: "auto",
         display: "flex",
         flexDirection: "column",
-        padding: "36px 20px 28px",
+        padding: "calc(var(--safe-top) + 20px) 20px calc(var(--safe-bottom) + 28px)",
       }}
     >
       <div
@@ -113,20 +120,6 @@ export function SettingsScreen({
             icon: "🔊",
             val: sound,
             set: () => patch({ soundEnabled: !sound }),
-          },
-          {
-            label: "Daily Reminders",
-            sub: "Notify me to keep my streak alive",
-            icon: "🔔",
-            val: remind,
-            set: () => setAccountMessage("Daily Reminders 將在 V1.1 提供。"),
-          },
-          {
-            label: "Haptic Feedback",
-            sub: "Vibrate on interactions (mobile)",
-            icon: "📳",
-            val: haptic,
-            set: () => setAccountMessage("Haptic Feedback 將在原生版本提供。"),
           },
           {
             label: "Auto-Next Card",
@@ -181,6 +174,11 @@ export function SettingsScreen({
         {saving && (
           <div style={{ color: C.gray, fontSize: 11, fontWeight: 700, marginTop: 10 }}>
             Saving...
+          </div>
+        )}
+        {preferenceMessage && (
+          <div role="alert" style={{ color: C.red, fontSize: 12, fontWeight: 700, marginTop: 10 }}>
+            {preferenceMessage}
           </div>
         )}
       </Card>

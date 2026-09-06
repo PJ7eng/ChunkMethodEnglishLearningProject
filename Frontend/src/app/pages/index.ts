@@ -8,4 +8,3 @@ export { ChallengeScreen } from './Challenge';
 export { NoteScreen } from './Note';
 export { ProfileScreen } from './Profile';
 export { ReviewScreen } from './Review';
-export { AdminScreen } from './Admin';

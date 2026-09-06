@@ -6,12 +6,16 @@ export interface ChunkResponse {
   phrase: string;
   translation: string;
   pinyin?: string;
+  usage?: string;
+  register?: string;
+  cefr?: string;
   category: string;
   difficulty: string;
   blank: string;
   answer: string;
   options: string[];
   examples: string[];
+  exampleDetails?: Array<{ sentence: string; translation?: string }>;
   needsReview?: boolean;
   mastered?: boolean;
 }
@@ -27,7 +31,7 @@ export class ContentPoolService {
         ...(category ? { category } : {}),
       },
       include: {
-        examples: true,
+        examples: { orderBy: { orderIndex: 'asc' } },
       },
       orderBy: { phrase: 'asc' },
     });
@@ -37,12 +41,19 @@ export class ContentPoolService {
       phrase: chunk.phrase,
       translation: chunk.translation,
       pinyin: chunk.pinyin ?? undefined,
+      usage: chunk.usage ?? undefined,
+      register: chunk.register ?? undefined,
+      cefr: chunk.cefr ?? undefined,
       category: chunk.category,
       difficulty: chunk.difficulty,
       blank: chunk.blank,
       answer: chunk.answer,
       options: Array.isArray(chunk.options) ? (chunk.options as string[]) : [],
       examples: chunk.examples.map((example) => example.sentence),
+      exampleDetails: chunk.examples.map((example) => ({
+        sentence: example.sentence,
+        translation: example.translation ?? undefined,
+      })),
       needsReview: false,
       mastered: false,
     }));
@@ -58,7 +69,7 @@ export class ContentPoolService {
     const chunk = await this.prisma.chunk.findFirst({
       where,
       skip: Math.floor(Math.random() * count),
-      include: { examples: true },
+      include: { examples: { orderBy: { orderIndex: 'asc' } } },
       orderBy: { id: 'asc' },
     });
     if (!chunk) throw new NotFoundException('No chunks found');
@@ -67,12 +78,19 @@ export class ContentPoolService {
       phrase: chunk.phrase,
       translation: chunk.translation,
       pinyin: chunk.pinyin ?? undefined,
+      usage: chunk.usage ?? undefined,
+      register: chunk.register ?? undefined,
+      cefr: chunk.cefr ?? undefined,
       category: chunk.category,
       difficulty: chunk.difficulty,
       blank: chunk.blank,
       answer: chunk.answer,
       options: Array.isArray(chunk.options) ? (chunk.options as string[]) : [],
       examples: chunk.examples.map((example) => example.sentence),
+      exampleDetails: chunk.examples.map((example) => ({
+        sentence: example.sentence,
+        translation: example.translation ?? undefined,
+      })),
       needsReview: false,
       mastered: false,
     };

@@ -1,5 +1,9 @@
 # ChunkMaster V1 deployment runbook
 
+V1 ships a privately distributed signed Android APK with its own launcher
+icon. Do not create a Play Console app, upload an AAB, or treat store listing
+as a launch gate. Web Admin remains on Cloudflare Pages.
+
 ## Environments
 
 Use separate Neon databases, Railway services, Cloudflare Pages projects, JWT
@@ -20,7 +24,7 @@ Never copy production user data into development.
    `npm ci && npm run build`, output `dist`, and set `VITE_API_BASE_URL`.
 5. Allow only the exact Pages custom domains in `CORS_ORIGINS`. Configure
    `app.example.com`, `api.example.com`, TLS and HSTS.
-6. Configure Sentry release/error tracking before public beta.
+6. Configure Sentry release/error tracking before inviting others.
 
 ## Release
 
@@ -29,7 +33,11 @@ Never copy production user data into development.
 3. Deploy the API image. Its startup command runs `prisma migrate deploy`.
 4. Verify `/health` and `/ready`; stop immediately if readiness fails.
 5. Deploy the frontend, then run the learner and Admin smoke journeys.
-6. Production content is created through `/admin/generation` and manually
+6. Build the Capacitor Android signed release APK against the production API
+   URL. Confirm the launcher icon, `applicationId`, and `versionCode`.
+7. Install the APK on a real device via unknown sources, then share the same
+   file privately. Keep the keystore offline; never commit it.
+8. Production content is created through `/admin/generation` and manually
    approved. Never run the development seed in production.
 
 ## Rollback
@@ -42,6 +50,9 @@ Never copy production user data into development.
   validate counts and ownership, then switch `DATABASE_URL`.
 - Target recovery objectives for V1: RPO 24 hours, RTO 2 hours. PITR may provide
   a lower RPO depending on the selected Neon plan.
+- Broken APK: stop sharing that file, raise `versionCode`, rebuild with the
+  same keystore, and send the new APK. Recipients must cover-install; there is
+  no store halt-rollout.
 
 ## Required smoke tests
 
@@ -63,9 +74,11 @@ tokens, reset tokens or raw secrets.
 
 ## V1 go/no-go
 
-Public release requires: no P0/P1 defects, successful backup restore rehearsal,
-successful rollback rehearsal, all smoke tests passing, reviewed privacy/terms
-pages, account deletion/export process, support contact, and 300–500 manually
-reviewed chunks. The repository supplies the workflow; content quantity and
-external provider provisioning are operational launch tasks, not generated
-automatically by deployment.
+Private APK distribution to other people requires: no P0/P1 defects, successful
+backup restore rehearsal, successful rollback rehearsal, all smoke tests
+passing, a signed APK with a unique launcher icon that does not talk to
+localhost or include Admin, install/upgrade instructions, in-app export/delete,
+a support contact, and manually reviewed chunks on the connected environment.
+Self-install of a debug build may use seed data. The repository supplies the
+workflow; content quantity and external provider provisioning are operational
+launch tasks, not generated automatically by deployment.

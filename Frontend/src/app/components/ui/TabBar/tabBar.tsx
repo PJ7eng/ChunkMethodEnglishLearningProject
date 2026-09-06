@@ -17,7 +17,8 @@ export function TabBar({ active, onChange }: TabBarProps) {
   return (
     <div
       style={{
-        height: 68,
+        height: "calc(68px + var(--safe-bottom))",
+        paddingBottom: "var(--safe-bottom)",
         flexShrink: 0,
         backgroundColor: C.surface2,
         borderTop: `1px solid rgba(255,255,255,0.07)`,
@@ -33,6 +34,9 @@ export function TabBar({ active, onChange }: TabBarProps) {
         return (
           <button
             key={t.id}
+            type="button"
+            aria-label={t.label}
+            aria-current={on ? "page" : undefined}
             onClick={() => onChange(t.id)}
             style={{
               flex: 1,

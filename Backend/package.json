@@ -9,7 +9,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "prisma migrate deploy && node dist/main",
     "typecheck": "tsc --noEmit --incremental false",
-    "test": "node --test -r ts-node/register tests/auth.service.test.ts tests/progress.service.test.ts tests/generation.service.test.ts",
+    "test": "node --test -r ts-node/register tests/auth.service.test.ts tests/auth.sessions.test.ts tests/auth.controller.test.ts tests/roles.guard.test.ts tests/progress.service.test.ts tests/srs.service.test.ts tests/generation.flows.test.ts tests/generation.service.test.ts tests/admin.service.test.ts",
     "test:e2e": "node --test -r ts-node/register tests/api.e2e.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:deploy": "prisma migrate deploy",

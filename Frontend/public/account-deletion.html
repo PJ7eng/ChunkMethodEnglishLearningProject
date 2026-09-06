@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>刪除帳號流程草稿｜ChunkMaster</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.7; }
+    body { margin: 0; background: Canvas; color: CanvasText; }
+    main, nav { width: min(760px, calc(100% - 40px)); margin-inline: auto; }
+    nav { padding-top: 24px; }
+    main { padding: 20px 0 64px; }
+    a { color: LinkText; }
+    h1 { line-height: 1.2; }
+    h2 { margin-top: 2rem; line-height: 1.3; }
+    .notice { border: 2px solid #b45309; border-radius: 10px; padding: 16px; background: #fffbeb; color: #451a03; }
+    .blocker { border-left: 4px solid #b91c1c; padding: 10px 14px; background: #fef2f2; color: #450a0a; }
+    footer { margin-top: 3rem; border-top: 1px solid GrayText; padding-top: 1rem; }
+    @media (prefers-color-scheme: dark) {
+      .notice { background: #451a03; color: #fef3c7; }
+      .blocker { background: #450a0a; color: #fee2e2; }
+    }
+  </style>
+</head>
+<body>
+  <nav aria-label="法律與支援頁面">
+    <a href="/privacy.html">隱私</a> ·
+    <a href="/terms.html">條款</a> ·
+    <a href="/account-deletion.html" aria-current="page">刪除帳號</a> ·
+    <a href="/support.html">支援</a>
+  </nav>
+  <main>
+    <div class="notice" role="status">
+      <strong>草稿／尚未開放外部申請：</strong>本頁描述預計流程，但目前沒有已確認的公開網站、支援信箱或 Web 申請端點。V1 以私下分發 APK 為主，請勿把本頁當成已上線的正式刪除入口。
+    </div>
+
+    <h1>刪除 ChunkMaster 帳號（草稿）</h1>
+    <p>草稿更新日期：2026-08-17</p>
+    <p class="blocker"><strong>TODO／發布阻塞：</strong>確認營運者、支援或隱私聯絡方式、正式 HTTPS URL、未登入申請流程、身份驗證方式、處理時限及保留例外。完成並實測後才可移除本標示。</p>
+
+    <h2>已登入 App 的目前流程</h2>
+    <ol>
+      <li>開啟 ChunkMaster 的「設定」。</li>
+      <li>建議先使用「匯出資料」保存需要的資料。</li>
+      <li>選擇「刪除帳號」。</li>
+      <li>依畫面要求再次輸入密碼並確認。</li>
+    </ol>
+    <p>現有後端在密碼確認成功後會立即刪除主要帳號紀錄。這項操作無法在 App 中復原。</p>
+
+    <h2>無法登入或未安裝 App</h2>
+    <p>公開 Web 申請管道尚未建立。正式發布前，預計允許使用者透過已確認的支援或隱私管道提出申請，並以不要求提供密碼明文的方式驗證帳號控制權。</p>
+    <p><strong>申請聯絡方式：</strong>TODO（發布阻塞；目前請勿寄送個人資料到未確認地址）</p>
+
+    <h2>刪除的資料</h2>
+    <p>目前程式會隨主要帳號刪除：</p>
+    <ul>
+      <li>電子郵件、名稱、密碼雜湊、時區與驗證狀態；</li>
+      <li>學習進度、每日進度與偏好；</li>
+      <li>使用者建立的 Notes；</li>
+      <li>登入工作階段、郵箱驗證及密碼重設權杖紀錄。</li>
+    </ul>
+
+    <h2>可能延後清除或依法保留的資料</h2>
+    <p>管理稽核事件可能在移除帳號關聯後保留；備份、基礎設施日誌與錯誤診斷中的副本也可能在其輪替週期結束前存在。尚未確認任何可對外承諾的具體期限或法律保留類別。</p>
+    <p class="blocker"><strong>TODO／發布阻塞：</strong>審核稽核事件是否含個人資料，並公布備份、日誌、診斷及法定保留資料的明確期限與刪除方式。</p>
+
+    <h2>刪除前的資料匯出</h2>
+    <p>已登入使用者可在設定中匯出帳號、偏好、Notes、學習進度與每日進度。刪除後可能無法再產生匯出檔。</p>
+
+    <footer>
+      <a href="/privacy.html">隱私政策草稿</a> ·
+      <a href="/terms.html">使用條款草稿</a> ·
+      <a href="/support.html">支援草稿</a>
+    </footer>
+  </main>
+</body>
+</html>

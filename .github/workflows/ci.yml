@@ -37,6 +37,9 @@ jobs:
       - name: Install backend
         working-directory: Backend
         run: npm ci
+      - name: Audit backend dependencies
+        working-directory: Backend
+        run: npm audit --audit-level=high --registry=https://registry.npmjs.org
       - name: Apply migrations
         working-directory: Backend
         run: npx prisma migrate deploy
@@ -46,8 +49,31 @@ jobs:
       - name: Install frontend
         working-directory: Frontend
         run: npm ci
+      - name: Audit frontend dependencies
+        working-directory: Frontend
+        run: npm audit --audit-level=high --registry=https://registry.npmjs.org
       - name: Verify frontend
         working-directory: Frontend
-        run: npm run typecheck && npm run build
+        env:
+          VITE_API_BASE_URL: https://api.example.invalid
+        run: npm run typecheck && npm test && npm run build
+      - name: Install Playwright Chromium
+        working-directory: Frontend
+        run: npx playwright install --with-deps chromium
+      - name: Run frontend smoke tests
+        working-directory: Frontend
+        run: npm run test:smoke
       - name: Build production image
         run: docker build -t chunkmaster-api:${{ github.sha }} Backend
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan repository secrets
+        uses: gitleaks/gitleaks-action@v2

@@ -62,7 +62,7 @@ export function StreakScreen({ onBack }: StreakScreenProps) {
         overflowY: "auto",
         display: "flex",
         flexDirection: "column",
-        padding: "36px 20px 28px",
+        padding: "calc(var(--safe-top) + 20px) 20px calc(var(--safe-bottom) + 28px)",
       }}
     >
       <div

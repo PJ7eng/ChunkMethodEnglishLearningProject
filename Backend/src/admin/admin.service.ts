@@ -7,11 +7,12 @@ export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
   async dashboard() {
-    const [users, pending, published, retired, failedJobs, recentJobs] =
+    const [users, pending, published, rejected, retired, failedJobs, recentJobs] =
       await Promise.all([
         this.prisma.user.count(),
         this.prisma.contentPoolItem.count({ where: { status: 'pending_review' } }),
         this.prisma.contentPoolItem.count({ where: { status: 'published' } }),
+        this.prisma.contentPoolItem.count({ where: { status: 'rejected' } }),
         this.prisma.contentPoolItem.count({ where: { status: 'retired' } }),
         this.prisma.generationJob.count({ where: { status: 'failed' } }),
         this.prisma.generationJob.findMany({
@@ -19,7 +20,7 @@ export class AdminService {
           orderBy: { startedAt: 'desc' },
         }),
       ]);
-    return { users, pending, published, retired, failedJobs, recentJobs };
+    return { users, pending, published, rejected, retired, failedJobs, recentJobs };
   }
 
   listContent(status?: ContentStatus, category?: string) {
@@ -29,7 +30,7 @@ export class AdminService {
         ...(category ? { category } : {}),
       },
       include: {
-        chunks: { include: { examples: true } },
+        chunks: { include: { examples: { orderBy: { orderIndex: 'asc' } } } },
         generationJob: true,
       },
       orderBy: { updatedAt: 'desc' },
@@ -41,7 +42,7 @@ export class AdminService {
     const item = await this.prisma.contentPoolItem.findUnique({
       where: { id },
       include: {
-        chunks: { include: { examples: true } },
+        chunks: { include: { examples: { orderBy: { orderIndex: 'asc' } } } },
         quizzes: true,
         versions: { orderBy: { version: 'desc' } },
         generationJob: true,
@@ -57,10 +58,14 @@ export class AdminService {
     patch: {
       phrase?: string;
       translation?: string;
+      pinyin?: string | null;
+      usage?: string;
+      register?: string;
+      cefr?: string;
       blank?: string;
       answer?: string;
       options?: string[];
-      examples?: string[];
+      examples?: Array<string | { sentence: string; translation?: string | null }>;
     },
     actorId: string,
   ) {
@@ -70,37 +75,54 @@ export class AdminService {
     if (!['pending_review', 'rejected', 'draft'].includes(before.status)) {
       throw new BadRequestException('Published content must be retired before editing');
     }
-    await this.prisma.$transaction(async (tx) => {
-      await tx.chunk.update({
-        where: { id: chunkId },
-        data: {
-          phrase: patch.phrase?.trim(),
-          translation: patch.translation?.trim(),
-          blank: patch.blank?.trim(),
-          answer: patch.answer?.trim(),
-          options: patch.options,
-        },
-      });
-      if (patch.examples) {
-        await tx.chunkExample.deleteMany({ where: { chunkId } });
-        await tx.chunkExample.createMany({
-          data: patch.examples
-            .map((sentence) => sentence.trim())
-            .filter(Boolean)
-            .map((sentence) => ({ chunkId, sentence })),
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.chunk.update({
+          where: { id: chunkId },
+          data: {
+            phrase: patch.phrase?.trim(),
+            phraseKey: patch.phrase ? this.phraseKey(patch.phrase) : undefined,
+            translation: patch.translation?.trim(),
+            pinyin: patch.pinyin === null ? null : patch.pinyin?.trim(),
+            usage: patch.usage?.trim(),
+            register: patch.register?.trim(),
+            cefr: patch.cefr?.trim().toUpperCase(),
+            blank: patch.blank?.trim(),
+            answer: patch.answer?.trim(),
+            options: patch.options?.map((option) => option.trim()).filter(Boolean),
+          },
         });
-      }
-      await tx.auditEvent.create({
-        data: {
-          actorId,
-          action: 'content.edit',
-          targetType: 'ContentPoolItem',
-          targetId: itemId,
-          before: this.json(before),
-          after: this.json(patch),
-        },
+        if (patch.examples) {
+          const examples = patch.examples
+            .map((example) => typeof example === 'string'
+              ? { sentence: example.trim(), translation: null }
+              : {
+                  sentence: example.sentence.trim(),
+                  translation: example.translation?.trim() || null,
+                })
+            .filter((example) => example.sentence);
+          await tx.chunkExample.deleteMany({ where: { chunkId } });
+          await tx.chunkExample.createMany({
+            data: examples.map((example, orderIndex) => ({ chunkId, orderIndex, ...example })),
+          });
+        }
+        await tx.auditEvent.create({
+          data: {
+            actorId,
+            action: 'content.edit',
+            targetType: 'ContentPoolItem',
+            targetId: itemId,
+            before: this.json(before),
+            after: this.json(patch),
+          },
+        });
       });
-    });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new BadRequestException('Phrase already exists');
+      }
+      throw error;
+    }
     return this.getContent(itemId);
   }
 
@@ -120,6 +142,7 @@ export class AdminService {
     if (!allowed[action].includes(item.status)) {
       throw new BadRequestException(`Cannot ${action} content in ${item.status}`);
     }
+    if (action === 'approve') this.assertReviewComplete(item);
     const next: Record<typeof action, ContentStatus> = {
       approve: 'published',
       reject: 'rejected',
@@ -166,5 +189,29 @@ export class AdminService {
 
   private json(value: unknown): Prisma.InputJsonValue {
     return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  }
+
+  private phraseKey(phrase: string): string {
+    return phrase.trim().replace(/\s+/g, ' ').toLowerCase();
+  }
+
+  private assertReviewComplete(item: Awaited<ReturnType<AdminService['getContent']>>): void {
+    if (!item.chunks.length) throw new BadRequestException('Content has no chunks');
+    for (const chunk of item.chunks) {
+      const options = Array.isArray(chunk.options) ? chunk.options as string[] : [];
+      if (
+        !chunk.phrase.trim() ||
+        !chunk.translation.trim() ||
+        !chunk.usage?.trim() ||
+        !chunk.register?.trim() ||
+        !/^(A1|A2|B1|B2|C1|C2)$/i.test(chunk.cefr?.trim() || '') ||
+        !chunk.blank.includes('___') ||
+        options.length < 3 ||
+        !options.some((option) => option.toLowerCase() === chunk.answer.toLowerCase()) ||
+        chunk.examples.length < 2
+      ) {
+        throw new BadRequestException(`Chunk "${chunk.phrase}" is incomplete`);
+      }
+    }
   }
 }

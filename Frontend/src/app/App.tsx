@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import { TabBar } from "./components/ui";
+import { NetworkStatus } from "./components/NetworkStatus";
 import {
   HomeScreen,
   LibraryScreen,
@@ -12,16 +13,22 @@ import {
   NoteScreen,
   ProfileScreen,
   ReviewScreen,
-  AdminScreen,
   AccountActionScreen,
 } from "./pages";
 import {
+  clearAuthSession,
   getCurrentUser,
   getPreferences,
   type PreferencesResponse,
   logoutUser,
 } from "./api";
+import { authStorage } from "./authStorage";
 import { C } from "./constants/designToken";
+import { isAdminEnabled } from "./platform";
+
+const AdminScreen = isAdminEnabled
+  ? lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminScreen })))
+  : null;
 
 type TabId = "home" | "notes" | "profile";
 type AuthMode = "login" | "register";
@@ -38,7 +45,7 @@ const DEFAULT_DAILY_GOAL = 10;
 
 export default function App() {
   const [isAdminPath, setIsAdminPath] = useState(
-    () => window.location.pathname.startsWith("/admin"),
+    () => isAdminEnabled && window.location.pathname.startsWith("/admin"),
   );
   const [tab, setTab] = useState<TabId>("home");
   const [overlay, setOverlay] = useState<OverlayId>(null);
@@ -49,13 +56,8 @@ export default function App() {
   const [prefs, setPrefs] = useState<PreferencesResponse | null>(null);
   const [bootstrapping, setBootstrapping] = useState(true);
 
-  const [token, setToken] = useState<string | null>(() =>
-    localStorage.getItem("chunk_auth_token"),
-  );
-  const [user, setUser] = useState<any>(() => {
-    const savedUser = localStorage.getItem("chunk_auth_user");
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
     if (tab === "home" && prevTabRef.current !== "home") {
@@ -67,16 +69,22 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     async function bootstrap() {
-      if (!token) {
-        setBootstrapping(false);
-        return;
-      }
       try {
+        const [savedToken, savedUser] = await Promise.all([
+          authStorage.getAccessToken(),
+          authStorage.getUser(),
+        ]);
+        if (cancelled) return;
+        setToken(savedToken);
+        setUser(savedUser);
+
+        // Web may have only HttpOnly cookies; /me can silently refresh them.
         const me = await getCurrentUser();
         if (cancelled) return;
         if (me.user) {
           setUser(me.user);
-          localStorage.setItem("chunk_auth_user", JSON.stringify(me.user));
+          await authStorage.setUser(me.user);
+          setToken((await authStorage.getAccessToken()) ?? "cookie-session");
         }
         const preferences = await getPreferences();
         if (cancelled) return;
@@ -84,8 +92,7 @@ export default function App() {
         setDailyGoal(preferences.dailyGoal);
       } catch {
         if (!cancelled) {
-          localStorage.removeItem("chunk_auth_token");
-          localStorage.removeItem("chunk_auth_user");
+          await clearAuthSession();
           setToken(null);
           setUser(null);
         }
@@ -97,19 +104,16 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, []);
 
   const handleAuthSuccess = (newToken: string, authUser: any) => {
-    localStorage.setItem("chunk_auth_token", newToken);
-    localStorage.setItem("chunk_auth_user", JSON.stringify(authUser));
     setToken(newToken);
     setUser(authUser);
   };
 
   const handleLogout = () => {
     void logoutUser().catch(() => undefined);
-    localStorage.removeItem("chunk_auth_token");
-    localStorage.removeItem("chunk_auth_user");
+    void clearAuthSession();
     setToken(null);
     setUser(null);
     setOverlay(null);
@@ -123,35 +127,14 @@ export default function App() {
     window.location.pathname.startsWith("/reset-password")
   ) {
     return (
-      <AccountActionScreen
-        onDone={() => {
-          window.history.replaceState({}, "", "/");
-          window.location.reload();
-        }}
-      />
-    );
-  }
-
-  if (!token) {
-    return (
       <>
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
-          * { box-sizing: border-box; }
-          body { margin: 0; background: #121212; }
-          input::placeholder { color: #A1A1AA; }
-        `}</style>
-        {authMode === "login" ? (
-          <LoginScreen
-            onAuthSuccess={handleAuthSuccess}
-            onSwitchToRegister={() => setAuthMode("register")}
-          />
-        ) : (
-          <RegisterScreen
-            onAuthSuccess={handleAuthSuccess}
-            onSwitchToLogin={() => setAuthMode("login")}
-          />
-        )}
+        <NetworkStatus />
+        <AccountActionScreen
+          onDone={() => {
+            window.history.replaceState({}, "", "/");
+            window.location.reload();
+          }}
+        />
       </>
     );
   }
@@ -175,18 +158,46 @@ export default function App() {
     );
   }
 
-  const canAdmin =
-    user?.role === "content_reviewer" ||
-    user?.role === "content_admin" ||
-    user?.role === "super_admin";
-  if (isAdminPath && canAdmin) {
+  if (!token) {
     return (
-      <AdminScreen
-        onExit={() => {
-          window.history.pushState({}, "", "/");
-          setIsAdminPath(false);
-        }}
-      />
+      <>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+          * { box-sizing: border-box; }
+          body { margin: 0; background: #121212; }
+          input::placeholder { color: #A1A1AA; }
+        `}</style>
+        <NetworkStatus />
+        {authMode === "login" ? (
+          <LoginScreen
+            onAuthSuccess={handleAuthSuccess}
+            onSwitchToRegister={() => setAuthMode("register")}
+          />
+        ) : (
+          <RegisterScreen
+            onAuthSuccess={handleAuthSuccess}
+            onSwitchToLogin={() => setAuthMode("login")}
+          />
+        )}
+      </>
+    );
+  }
+
+  const canAdmin =
+    isAdminEnabled &&
+    (user?.role === "content_reviewer" ||
+      user?.role === "content_admin" ||
+      user?.role === "super_admin");
+  if (isAdminPath && canAdmin && AdminScreen) {
+    return (
+      <Suspense fallback={<div style={{ height: "100dvh", background: C.bg }} />}>
+        <AdminScreen
+          onExit={() => {
+            window.history.pushState({}, "", "/");
+            setIsAdminPath(false);
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -217,6 +228,7 @@ export default function App() {
         }
         input::placeholder { color: #A1A1AA; }
       `}</style>
+      <NetworkStatus />
 
       <div
         style={{
@@ -233,7 +245,7 @@ export default function App() {
         {showAppHeader && (
           <div
             style={{
-              padding: "36px 20px 12px",
+              padding: "calc(var(--safe-top) + 20px) 20px 12px",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",

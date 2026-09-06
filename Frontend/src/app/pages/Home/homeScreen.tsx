@@ -128,14 +128,17 @@ export function HomeScreen({
   async function recordAndBump(chunkId: string, isCorrect: boolean) {
     try {
       await recordProgressAnswer(chunkId, isCorrect, undefined, Date.now() - shownAt);
+      setError(null);
       if (isCorrect) playCorrectSound(soundEnabled);
       const today = await getTodayProgress();
       setDone(today.completedCount);
       setGoal(today.goal || dailyGoal);
       setStreak(today.streak);
       refreshStats();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save progress");
+      return false;
     }
   }
 
@@ -148,7 +151,8 @@ export function HomeScreen({
     if (!chunk) return;
     const nextDone = done + 1;
     const hitGoal = nextDone > 0 && nextDone % goal === 0;
-    await recordAndBump(chunk.id, remembered);
+    const saved = await recordAndBump(chunk.id, remembered);
+    if (!saved) return;
     if (hitGoal) {
       setAtGoalBoundary(true);
     }

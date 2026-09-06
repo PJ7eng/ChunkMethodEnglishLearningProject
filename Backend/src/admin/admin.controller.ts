@@ -38,10 +38,14 @@ export class AdminController {
     @Body() body: {
       phrase?: string;
       translation?: string;
+      pinyin?: string | null;
+      usage?: string;
+      register?: string;
+      cefr?: string;
       blank?: string;
       answer?: string;
       options?: string[];
-      examples?: string[];
+      examples?: Array<string | { sentence: string; translation?: string | null }>;
     },
     @Req() request: Request & { user?: AuthenticatedUser },
   ) {

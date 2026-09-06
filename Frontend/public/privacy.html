@@ -1,12 +1,100 @@
 <!doctype html>
 <html lang="zh-Hant">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>ChunkMaster 隱私政策</title></head>
-<body style="font-family:system-ui;max-width:760px;margin:40px auto;padding:0 20px;line-height:1.7">
-<h1>ChunkMaster 隱私政策</h1>
-<p>最後更新：2026-08-16</p>
-<p>我們使用電子郵件提供帳號服務，並保存學習進度、偏好與你建立的筆記，以同步學習體驗。</p>
-<p>密碼只保存雜湊；我們不出售個人資料。必要的託管、郵件、錯誤追蹤及大模型供應商只取得提供服務所需的最少資料。學習者的私人筆記不會傳送給大模型內容生成流程。</p>
-<p>你可在帳號設定匯出或刪除資料。安全或法規要求的有限紀錄可能在合理期限內保留。</p>
-<p>正式發布前，營運者應在此補上公司名稱、司法管轄區、資料保留期限及支援聯絡方式。</p>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>隱私政策草稿｜ChunkMaster</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.7; }
+    body { margin: 0; background: Canvas; color: CanvasText; }
+    main, nav { width: min(760px, calc(100% - 40px)); margin-inline: auto; }
+    nav { padding-top: 24px; }
+    main { padding: 20px 0 64px; }
+    a { color: LinkText; }
+    h1 { line-height: 1.2; }
+    h2 { margin-top: 2rem; line-height: 1.3; }
+    .notice { border: 2px solid #b45309; border-radius: 10px; padding: 16px; background: #fffbeb; color: #451a03; }
+    .blocker { border-left: 4px solid #b91c1c; padding: 10px 14px; background: #fef2f2; color: #450a0a; }
+    footer { margin-top: 3rem; border-top: 1px solid GrayText; padding-top: 1rem; }
+    @media (prefers-color-scheme: dark) {
+      .notice { background: #451a03; color: #fef3c7; }
+      .blocker { background: #450a0a; color: #fee2e2; }
+    }
+  </style>
+</head>
+<body>
+  <nav aria-label="法律與支援頁面">
+    <a href="/privacy.html" aria-current="page">隱私</a> ·
+    <a href="/terms.html">條款</a> ·
+    <a href="/account-deletion.html">刪除帳號</a> ·
+    <a href="/support.html">支援</a>
+  </nav>
+  <main>
+    <div class="notice" role="status">
+      <strong>草稿狀態：</strong>本頁尚未經法律審閱，也不代表 ChunkMaster 已正式公開發布。
+      正式上線前必須解決下列發布阻塞並移除草稿標示。
+    </div>
+
+    <h1>ChunkMaster 隱私政策（草稿）</h1>
+    <p>草稿更新日期：2026-08-17</p>
+    <p class="blocker"><strong>TODO／發布阻塞：</strong>填入營運者的完整法律名稱、成立或營運司法地區、可接收隱私請求的聯絡方式、本政策的正式公開 URL，以及各類資料與備份的核准保存期限。</p>
+
+    <h2>1. 適用範圍與資料控制者</h2>
+    <p>本草稿預計適用於 ChunkMaster 網頁與 Android 應用程式。決定資料處理目的與方式的營運者資料尚未確認。</p>
+    <p><strong>營運者：</strong>TODO（發布阻塞：法律名稱）<br>
+      <strong>司法地區：</strong>TODO（發布阻塞）<br>
+      <strong>隱私聯絡方式：</strong>TODO（發布阻塞）</p>
+
+    <h2>2. 我們預計處理的資料</h2>
+    <ul>
+      <li><strong>帳號資料：</strong>電子郵件、選填名稱、密碼雜湊、郵箱驗證狀態、時區、帳號角色及建立／更新時間。</li>
+      <li><strong>學習與偏好：</strong>已學內容、作答與複習次數、熟練度、到期時間、反應時間、每日完成量、連續學習紀錄、每日目標、聲音、提醒、觸覺及自動前進設定。</li>
+      <li><strong>Notes：</strong>使用者輸入的英文、翻譯、分類及其與學習內容的關聯。</li>
+      <li><strong>安全與工作階段：</strong>雜湊後的 refresh token、工作階段時間、IP 位址、瀏覽器或裝置 user agent，以及郵箱驗證／密碼重設權杖的雜湊與時間。</li>
+      <li><strong>診斷資料：</strong>請求 ID、路由、HTTP 狀態、處理時間，以及啟用錯誤追蹤後的錯誤、環境與版本資訊。現有設定要求錯誤追蹤不主動傳送預設個人識別資料。</li>
+    </ul>
+    <p>密碼本身不以明文保存。ChunkMaster V1 不計畫要求定位、聯絡人、相機或麥克風權限，也尚未加入廣告或產品分析 SDK。</p>
+
+    <h2>3. 預計用途</h2>
+    <ul>
+      <li>建立、驗證及保護帳號，提供登入、登出與密碼重設。</li>
+      <li>同步學習進度、SRS 複習、每日目標、偏好及 Notes。</li>
+      <li>提供資料匯出、帳號刪除及使用者支援。</li>
+      <li>偵測錯誤、維護服務安全與可靠性，並防止濫用。</li>
+    </ul>
+    <p class="blocker"><strong>TODO／發布阻塞：</strong>由合資格顧問依營運司法地區確認各項處理的法律依據、使用者權利與未成年人規定。</p>
+
+    <h2>4. 第三方處理者與資料傳輸</h2>
+    <p>發布計畫預計評估下列供應商；在完成合約、地區、子處理者及保存設定前，不應把此清單視為已啟用的 production 清單：</p>
+    <ul>
+      <li>Neon：PostgreSQL 資料庫與備份。</li>
+      <li>Railway：後端 API 與執行日誌託管。</li>
+      <li>Cloudflare Pages：網頁託管與邊緣傳輸。</li>
+      <li>Resend：帳號驗證與密碼重設郵件。</li>
+      <li>Sentry：網頁、Android 與後端錯誤診斷（僅在設定 DSN 後啟用）。</li>
+      <li>OpenAI：管理員發起的學習內容生成。使用者的私人 Notes 不會送入此流程。</li>
+    </ul>
+    <p class="blocker"><strong>TODO／發布阻塞：</strong>逐一確認 production 實際供應商、資料處理協議、處理地區、跨境傳輸機制、保存設定及正式隱私政策連結。</p>
+
+    <h2>5. 保存、匯出與刪除</h2>
+    <p>登入後可在設定中匯出帳號資料。現有 App 內刪除流程要求再次輸入密碼；成功後會刪除主要帳號資料，並以資料庫關聯級聯刪除偏好、學習進度、Notes、工作階段及驗證／重設權杖。</p>
+    <p>管理稽核事件在刪除帳號後可能保留但解除與帳號的直接關聯；事件快照是否可能含個人資料仍須審核。備份及供應商日誌中的副本不一定會同時即時消失。</p>
+    <p class="blocker"><strong>TODO／發布阻塞：</strong>核准並公布 active 資料、稽核事件、應用程式日誌、錯誤診斷及備份的具體保存／覆寫期限；確認刪除請求的身份驗證、完成時限與法律保留例外。</p>
+    <p>外部刪除帳號流程仍為草稿，請參閱<a href="/account-deletion.html">刪除帳號頁面</a>的目前狀態。</p>
+
+    <h2>6. 安全與使用者權利</h2>
+    <p>系統預計使用 TLS、存取控制、密碼雜湊、短效 access token 與雜湊 refresh token 等措施。任何系統都無法保證絕對安全。</p>
+    <p>可適用的查閱、更正、刪除、限制、反對或申訴權利取決於尚未確認的營運司法地區。正式聯絡管道確認前，本草稿無法提供可操作的隱私請求地址。</p>
+
+    <h2>7. 政策變更</h2>
+    <p>正式政策將標示生效日及重大變更的通知方式。本草稿不構成已生效政策。</p>
+
+    <footer>
+      <a href="/terms.html">使用條款草稿</a> ·
+      <a href="/account-deletion.html">刪除帳號草稿</a> ·
+      <a href="/support.html">支援草稿</a>
+    </footer>
+  </main>
 </body>
 </html>

@@ -29,7 +29,7 @@ export function Modal({
         alignItems: align === "bottom" ? "flex-end" : "center",
         justifyContent: "center",
         backgroundColor: "rgba(0,0,0,0.65)",
-        padding: 20,
+        padding: "20px calc(var(--safe-right) + 20px) calc(var(--safe-bottom) + 20px) calc(var(--safe-left) + 20px)",
         animation: "fadeSlideIn 0.2s ease",
         ...style,
       }}
@@ -46,6 +46,8 @@ export function Modal({
           boxShadow: `0 8px 0 ${C.dim}`,
           border: "1px solid rgba(255,255,255,0.08)",
           marginBottom: align === "bottom" ? 8 : 0,
+          maxHeight: "min(88dvh, 720px)",
+          overflowY: "auto",
           ...panelStyle,
         }}
       >

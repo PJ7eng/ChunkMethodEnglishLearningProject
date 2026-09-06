@@ -93,8 +93,12 @@ model Chunk {
   contentPoolItemId String
   contentPoolItem   ContentPoolItem    @relation(fields: [contentPoolItemId], references: [id], onDelete: Cascade)
   phrase            String             @unique
+  phraseKey         String             @unique
   translation       String
   pinyin            String?
+  usage             String?
+  register          String?
+  cefr              String?
   category          String
   difficulty        String
   blank             String
@@ -108,10 +112,14 @@ model Chunk {
 }
 
 model ChunkExample {
-  id       String @id @default(uuid())
-  chunkId  String
-  chunk    Chunk  @relation(fields: [chunkId], references: [id], onDelete: Cascade)
-  sentence String
+  id          String @id @default(uuid())
+  chunkId     String
+  chunk       Chunk  @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+  sentence    String
+  translation String?
+  orderIndex  Int    @default(0)
+
+  @@unique([chunkId, orderIndex])
 }
 
 model QuizQuestion {
@@ -188,11 +196,13 @@ model GenerationJob {
   triggerReason  String
   category       String?
   difficulty     String?
+  provider       String?
   model          String?
   promptVersion  String?
   inputTokens    Int               @default(0)
   outputTokens   Int               @default(0)
   estimatedCost  Float             @default(0)
+  retryCount     Int               @default(0)
   idempotencyKey String?           @unique
   createdById    String?
   contentItems   ContentPoolItem[]
