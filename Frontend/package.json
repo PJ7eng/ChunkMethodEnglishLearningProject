@@ -93,9 +93,13 @@
       "optional": true
     }
   },
+  "overrides": {
+    "browserslist": "^4.28.9"
+  },
   "pnpm": {
     "overrides": {
-      "vite": "6.4.3"
+      "vite": "6.4.3",
+      "browserslist": "^4.28.9"
     }
   }
 }
