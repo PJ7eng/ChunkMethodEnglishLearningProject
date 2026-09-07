@@ -1,10 +1,39 @@
 # ChunkMaster 開發進度總結
 
-> **更新日期**：2026-09-06
+> **更新日期**：2026-09-07
 > **產品定位**：以 chunk（片語／語塊）為單位的英語學習 App  
 > **技術棧**：Frontend — React + Vite + TypeScript + PWA／Capacitor Android（待建）；Backend — NestJS + Prisma + PostgreSQL；LLM — DeepSeek Chat Completions（本機已接通）  
 > **發布目標**：私下分發 signed Android APK（獨立主畫面圖示）；Web 保留學習入口及 Admin 後台。不上架 Google Play。  
-> **當前階段**：本機 Admin → DeepSeek 生成 → 待審 → 核准 → 學習端可用，已實測成功。下一里程碑仍是 [V1_PLAN.md](V1_PLAN.md) **M1**（發布身份、域名、雲端 staging）。尚未建立 Capacitor `android/`，正式 300–500 條審核內容尚未量產。
+> **當前階段**：本機 Admin → DeepSeek 生成 → 待審 → 核准 → 學習端可用，已實測成功。Admin 生成 UX、同一天可重排、分類內防重複 prompt（`v1.3.0`）已接上。下一里程碑仍是 [V1_PLAN.md](V1_PLAN.md) **M1**（發布身份、域名、雲端 staging）。尚未建立 Capacitor `android/`，正式 300–500 條審核內容尚未量產。
+
+---
+
+### 2026-09-07 — Admin 生成 UX、取消日冪等、分類防重複 prompt
+- 完成：
+  - Admin 待審列表改為獨立全頁（可捲動）；主畫面用四個狀態按鈕進入待審／已發布／已拒絕／已下架。Dashboard 統計卡含 users、pending、published、rejected、retired、failedJobs。
+  - 生成表單改為左描述右下拉：種類、難易度、數量；「建立生成任務」須確認模態。確定後按鈕鎖定為「任務已排程...」，每 3 秒輪詢 job 直到 `success`／`failed`（逾時 6 分鐘解鎖）。成功綠字、失敗紅字顯示 `errorMessage`；「重新整理」清除提示但進行中 job 保持鎖定。
+  - 取消「同一使用者＋同一 UTC 日＋同一分類／難度／triggerReason」冪等擋下。同一天可連續排兩次相同種類。每日 20 筆 job、每小時 10 次 API、單次 batch 1–50 仍有效。
+  - Prompt 升為 `v1.3.0`：打模型前只把**該分類**已有 `phrase` 塞進禁止清單（最多 1000，`EXISTING_PHRASE_PROMPT_LIMIT`）。批次內／全域 `phraseKey` 去重與 unique 衝突跳過仍保留。
+  - Dashboard API 補 `rejected` 計數。`AI_BASE_URL` 必須是完整 completions 路徑（`https://api.deepseek.com/chat/completions`）；只寫 host 會 404，因程式用 `fetch` 不會像 OpenAI SDK 自動補路徑。
+- 修改文件：
+  - `Frontend/src/app/pages/Admin/adminScreen.tsx`、`Frontend/src/app/api.ts`、`Frontend/src/app/App.tsx`
+  - `Backend/src/generation/generation.service.ts`、`Backend/src/admin/admin.service.ts`
+  - `Backend/tests/generation.service.test.ts`、`Backend/tests/admin.service.test.ts`
+- 驗證命令與結果：
+  - Backend generation unit／flow tests：通過（含同一天兩次 createJob、prompt 只含同分類片語）。
+  - Admin 本機：確認模態、鎖定、輪詢、綠／紅字已接上；`GET /admin/generation/jobs/:id` 輪詢可見於 Nest HTTP log。
+- Artifact／URL：
+  - 僅本機；無公開 API／APK。
+- 給下一個 Agent 的已知陷阱：
+  - `AI_BASE_URL` 對 `fetch` 是最終 POST 網址，不是 SDK `baseURL`。正確值：`https://api.deepseek.com/chat/completions`。
+  - HTTP 201 只表示 job 入列。打模型是背景 worker；404／401 不重試。
+  - 中途殺掉 `running` job 可能卡住，worker 重啟只撈 `pending`。沒有自動 reclaim。
+  - Admin 編輯仍是一連串 `window.prompt`；狀態列表頁不會自動刷新。
+  - 禁止清單只含該分類片語；跨分類相同 `phraseKey` 仍在入庫時被 DB unique 擋掉。
+  - Resend／正式郵件、Sentry 雲端、Capacitor Android 仍未做。
+- 下一步（見第六節）：
+  - 不要重做 LLM 接線或 Admin 生成表單，除非要改卡住 job 回收或編輯 UI。
+  - 本機可繼續量產並人工審核。發布主線仍是 M1。
 
 ---
 
@@ -145,8 +174,9 @@
 
 ### 9. PWA 與 Admin
 - PWA manifest、icon、service worker、SPA redirect 及基本唯讀快取
-- `/admin` 受角色保護，提供 Dashboard、待審列表、生成任務及內容生命週期操作
-- Admin 可設定 category、difficulty、batch size，並執行 Edit／Approve／Reject／Retire／Restore
+- `/admin` 受角色保護；Dashboard 統計＋生成表單＋四個狀態入口
+- 生成：確認模態後鎖定按鈕並輪詢 job；成功／失敗在按鈕下方綠／紅字提示
+- 各狀態為獨立可捲動頁（頂部狀態名＋左上返回）；可 Edit／Approve／Reject／Retire／Restore
 - 管理操作寫入 AuditEvent
 
 ---
@@ -210,15 +240,16 @@
 
 ### 7. Generation（`/admin/generation`，需 content_admin）
 - HTTP 只建立 job；API 行程內 worker 每 5 秒撈 `pending`（`GENERATION_WORKER_ENABLED`）
-- **本機已接通 DeepSeek**（`AI_BASE_URL` + `json_object`）。無 key 或模型失敗時 job 失敗，不使用模板冒充內容
+- **本機已接通 DeepSeek**（`AI_BASE_URL` 須含 `/chat/completions` + `json_object`）。無 key 或模型失敗時 job 失敗，不使用模板冒充內容
 - 打 OpenAI 相容 URL 時仍可用 `json_schema`；由 `AI_JSON_MODE` 或是否 `deepseek.com` 決定
-- 支援冪等鍵、批次 1–50、每日 job 上限、category／difficulty 白名單
-- 自動檢查必填欄位、填空、答案／選項、CEFR 及批次／全域 `phraseKey` 去重
+- Prompt `v1.3.0`：只把該分類已有 phrase 列入禁止清單；另有批次內／全域 `phraseKey` 去重
+- 已取消日冪等；同一天同一分類可重排。仍限制批次 1–50、每日 job 上限、category／difficulty 白名單
+- 自動檢查必填欄位、填空、答案／選項、CEFR
 - 生成內容只進 `pending_review`，核准後才 `published`，學習 API 只讀已發布內容
 
 ### 8. Admin（`/admin`）
-- Dashboard：用戶、待審、已發布、已下架及失敗 job 統計
-- Content：列表、詳情、編輯、核准、拒絕、下架及恢復
+- Dashboard：用戶、待審、已發布、已拒絕、已下架及失敗 job 統計
+- Content：依狀態分頁列表、詳情、編輯、核准、拒絕、下架及恢復
 - 內容狀態：`draft → generating → pending_review → published／rejected → retired`
 - 每次重要操作建立 ContentVersion 與 AuditEvent
 - reviewer 可審核；只有 content_admin／super_admin 可生成或下架
@@ -263,6 +294,8 @@ flowchart LR
 
 ## 四、工程驗證現況
 
+2026-09-07 本機：Admin 生成確認／鎖定／輪詢與分類防重複 prompt 已接上。Generation 單元測試通過（含同一天兩次 createJob、prompt 只含同分類片語）。
+
 2026-09-04～06 本機：Docker Postgres 可連線；DeepSeek 真實生成進待審並可核准。Generation 相關單元測試通過。
 
 2026-08-16 本機驗證：
@@ -290,13 +323,13 @@ flowchart LR
 - 在實機完成核心流程與內容品質修正
 - 執行 Neon 備份還原及應用回滾演練
 - 補齊給受邀者的隱私、條款、支援與刪除說明；不填 Play Data safety 或 Store listing
-- 可選：失敗 job 允許重試（目前冪等會擋住同一天同一參數）；Admin 顯示 job `errorMessage` 與自動刷新待審
+- 可選：卡住的 `running` job 自動回收；Admin 編輯改為表單而非 `window.prompt`；待審頁自動刷新
 
 ### 2. 測試與品質
 - 前端 Playwright：登入、學習、Review、Notes、Admin
 - axe／Lighthouse 可訪問性與 PWA 驗收
 - 弱網、API 失敗、session 過期及 refresh 重放測試
-- Generation 50 條批次、冪等及模型失敗回歸測試
+- Admin Playwright；Generation 大批次與卡住 job 回歸（50 條批次 mock 與模型失敗測試已有）
 
 ### 3. V1.1／V2
 - 完整 FSRS、弱項分析及學習建議
@@ -310,10 +343,10 @@ flowchart LR
 
 ## 六、下一階段衝刺焦點
 
-1. **不要重做 LLM 接線**，除非要改模型、重試冪等或 Admin UX。本機 DeepSeek 已驗證。
-2. 可並行：用 `/admin` 繼續生成並人工核准，累積面向熟人的題庫（目標 300–500，品質優先）。
+1. **不要重做 LLM 接線或 Admin 生成表單**，除非要改卡住 job 回收、編輯 UI 或模型。本機 DeepSeek 與分類防重複 prompt 已驗證。
+2. 可並行：用 `/admin` 繼續生成並人工核准，累積面向熟人的題庫（目標 300–500，品質優先）。同一天同一分類可再排。
 3. 發布主線仍是 M1：application ID、App 顯示名稱、可從外網連的 HTTPS API／網域。
 4. M1 通過後建立 Capacitor Android 工程與獨立圖示，再依 [V1 計劃](V1_PLAN.md) 做 signed APK。
-5. 雲端部署時把 DeepSeek key 與 `AI_BASE_URL` 放進後端 Secret，前端／APK 不得帶入。
+5. 雲端部署時把 DeepSeek key 與完整 `AI_BASE_URL`（含 `/chat/completions`）放進後端 Secret，前端／APK 不得帶入。
 
 分發給他人前不得跳過人工內容審核、資料備份、權限驗證及回滾演練。

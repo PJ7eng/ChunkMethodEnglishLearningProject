@@ -50,9 +50,23 @@ class FakePrisma {
   };
 
   chunk = {
-    findMany: async (args: any) => this.chunks
-      .filter((chunk) => args.where.phraseKey.in.includes(chunk.phraseKey))
-      .map((chunk) => ({ phraseKey: chunk.phraseKey })),
+    findMany: async (args: any) => {
+      const keys = args?.where?.phraseKey?.in;
+      if (keys) {
+        return this.chunks
+          .filter((chunk) => keys.includes(chunk.phraseKey))
+          .map((chunk) => ({ phraseKey: chunk.phraseKey }));
+      }
+      const category = args?.where?.category;
+      const filtered = category
+        ? this.chunks.filter((chunk) => chunk.category === category)
+        : this.chunks;
+      const take = args?.take ?? filtered.length;
+      return filtered.slice(0, take).map((chunk) => ({
+        phrase: chunk.phrase ?? chunk.phraseKey,
+        phraseKey: chunk.phraseKey,
+      }));
+    },
     create: async (args: any) => {
       const chunk = { id: `chunk-${this.chunks.length + 1}`, ...args.data };
       this.chunks.push(chunk);
@@ -293,6 +307,57 @@ test('OpenAI-compatible endpoints keep json_schema structured output', async () 
   }
   assert.equal(requestBody.response_format.type, 'json_schema');
   assert.equal(requestBody.model, 'gpt-4o-mini');
+});
+
+test('generation prompt lists existing phrases and omits the list when empty', () => {
+  const service = new GenerationService(new FakePrisma() as any);
+  const withExisting = (service as any).generationPrompt(
+    'travel',
+    'easy',
+    5,
+    ['touch base', 'hit the road'],
+  );
+  assert.match(withExisting, /Do not reuse any existing travel phrase below/i);
+  assert.match(withExisting, /touch base/);
+  assert.match(withExisting, /hit the road/);
+  assert.match(withExisting, /Generate 5 phrases that are not in this list/);
+
+  const empty = (service as any).generationPrompt('travel', 'easy', 5, []);
+  assert.equal(/Do not reuse any existing travel phrase below/i.test(empty), false);
+});
+
+test('loads only same-category chunk phrases into the AI request', async () => {
+  const prisma = new FakePrisma();
+  prisma.chunks.push({ phrase: 'check in', phraseKey: 'check in', category: 'travel' });
+  prisma.chunks.push({ phrase: 'Touch  Base', phraseKey: 'touch base', category: 'workplace' });
+  const service = new GenerationService(prisma as any);
+  const originalFetch = global.fetch;
+  const originalKey = process.env.OPENAI_API_KEY;
+  const originalBase = process.env.AI_BASE_URL;
+  let requestBody: any;
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.AI_BASE_URL = 'https://api.deepseek.com/chat/completions';
+  global.fetch = async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body));
+    return new Response('{"error":"rate"}', { status: 429 });
+  };
+  try {
+    await assert.rejects(
+      (service as any).generateItems('travel', 'easy', 1),
+      /AI request failed with 429/,
+    );
+  } finally {
+    global.fetch = originalFetch;
+    if (originalKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalKey;
+    if (originalBase === undefined) delete process.env.AI_BASE_URL;
+    else process.env.AI_BASE_URL = originalBase;
+  }
+  const userPrompt = requestBody.messages[1].content as string;
+  assert.match(userPrompt, /Do not reuse any existing travel phrase below/i);
+  assert.match(userPrompt, /check in/);
+  assert.equal(/Touch  Base/.test(userPrompt), false);
+  assert.match(requestBody.messages[0].content, /already existing/i);
 });
 
 test('createJob allows the same category and difficulty twice in one day', async () => {

@@ -52,7 +52,7 @@ class AiGenerationError extends Error {
 
 const CATEGORIES = new Set(['workplace', 'smalltalk', 'travel', 'emotions', 'random']);
 const DIFFICULTIES = new Set(['easy', 'medium', 'hard']);
-const PROMPT_VERSION = 'v1.2.0';
+const PROMPT_VERSION = 'v1.3.0';
 const DEFAULT_DEEPSEEK_URL = 'https://api.deepseek.com';
 const CHUNK_JSON_EXAMPLE = `{
   "items": [
@@ -354,14 +354,42 @@ export class GenerationService implements OnModuleInit, OnModuleDestroy {
     difficulty: string,
     batchSize: number,
   ): Promise<GenerationResult> {
-    const generation = await this.tryGenerateWithAi(category, difficulty, batchSize);
+    const existingPhrases = await this.existingPhrases(category);
+    const generation = await this.tryGenerateWithAi(
+      category,
+      difficulty,
+      batchSize,
+      existingPhrases,
+    );
     return { ...generation, items: this.validateItems(generation.items) };
+  }
+
+  private async existingPhrases(category: string): Promise<string[]> {
+    const limit = this.numberEnv('EXISTING_PHRASE_PROMPT_LIMIT', 1000, 0, 5000);
+    if (limit === 0) return [];
+    const rows = await this.prisma.chunk.findMany({
+      where: { category },
+      select: { phrase: true, phraseKey: true },
+      orderBy: { phraseKey: 'asc' },
+      take: limit,
+    });
+    const seen = new Set<string>();
+    const phrases: string[] = [];
+    for (const row of rows) {
+      const key = row.phraseKey || this.phraseKey(row.phrase);
+      const phrase = row.phrase?.trim() || row.phraseKey?.trim();
+      if (!key || !phrase || seen.has(key)) continue;
+      seen.add(key);
+      phrases.push(phrase);
+    }
+    return phrases;
   }
 
   private async tryGenerateWithAi(
     category: string,
     difficulty: string,
     batchSize: number,
+    existingPhrases: string[] = [],
   ): Promise<GenerationResult> {
     const apiKey = this.aiApiKey();
     if (!apiKey) {
@@ -371,7 +399,7 @@ export class GenerationService implements OnModuleInit, OnModuleDestroy {
     const model = this.aiModel();
     const provider = this.aiProvider();
     const endpoint = this.aiBaseUrl();
-    const prompt = this.generationPrompt(category, difficulty, batchSize);
+    const prompt = this.generationPrompt(category, difficulty, batchSize, existingPhrases);
     const maxAttempts = this.numberEnv('GENERATION_MAX_ATTEMPTS', 3, 1, 5);
     const timeoutMs = this.numberEnv('GENERATION_REQUEST_TIMEOUT_MS', 60_000, 1_000, 180_000);
     const maxTokens = this.numberEnv('GENERATION_MAX_TOKENS', 8_192, 512, 32_768);
@@ -398,7 +426,7 @@ export class GenerationService implements OnModuleInit, OnModuleDestroy {
             messages: [
               {
                 role: 'system',
-                content: 'You are a senior ESL curriculum editor. Produce accurate, natural, safe learning content as json.',
+                content: 'You are a senior ESL curriculum editor. Produce accurate, natural, safe learning content as json. Never repeat phrases the user lists as already existing.',
               },
               { role: 'user', content: prompt },
             ],
@@ -491,15 +519,29 @@ export class GenerationService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private generationPrompt(category: string, difficulty: string, batchSize: number): string {
-    return [
+  private generationPrompt(
+    category: string,
+    difficulty: string,
+    batchSize: number,
+    existingPhrases: string[] = [],
+  ): string {
+    const parts = [
       `Generate ${batchSize} English chunks for Traditional Chinese learners.`,
       `Category=${category}; difficulty=${difficulty}.`,
       'Each item needs a natural phrase, Traditional Chinese translation, cloze sentence, exact answer, 3 plausible options containing the answer, at least 2 natural examples with Traditional Chinese translations, quiz prompt, concise usage note, register, and CEFR.',
       'Avoid duplicates and unsafe content.',
+    ];
+    if (existingPhrases.length) {
+      parts.push(
+        `Do not reuse any existing ${category} phrase below. Treat them as case-insensitive and ignore extra spaces. Generate ${batchSize} phrases that are not in this list:`,
+        existingPhrases.join(' | '),
+      );
+    }
+    parts.push(
       'Return json only, as an object with an items array matching this example json:',
       CHUNK_JSON_EXAMPLE,
-    ].join(' ');
+    );
+    return parts.join(' ');
   }
 
   private parseModelJson(content: string): { items?: GeneratedItem[] } {
