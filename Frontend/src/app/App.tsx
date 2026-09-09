@@ -16,15 +16,18 @@ import {
   AccountActionScreen,
 } from "./pages";
 import {
+  ApiError,
   clearAuthSession,
   getCurrentUser,
   getPreferences,
   type PreferencesResponse,
   logoutUser,
+  restoreSessionWithRefresh,
 } from "./api";
 import { authStorage } from "./authStorage";
 import { C } from "./constants/designToken";
 import { isAdminEnabled } from "./platform";
+import { useNativeBackButton } from "./useNativeBackButton";
 
 const AdminScreen = isAdminEnabled
   ? lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminScreen })))
@@ -59,6 +62,18 @@ export default function App() {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
 
+  useNativeBackButton({
+    overlay,
+    setOverlay,
+    tab,
+    setTab,
+    isLoggedIn: Boolean(token),
+    authMode,
+    setAuthMode,
+    isAdminPath,
+    setIsAdminPath,
+  });
+
   useEffect(() => {
     if (tab === "home" && prevTabRef.current !== "home") {
       setHomeKey((k) => k + 1);
@@ -68,8 +83,14 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+    const bootTimeout = window.setTimeout(() => {
+      if (!cancelled) setBootstrapping(false);
+    }, 25_000);
     async function bootstrap() {
       try {
+        await restoreSessionWithRefresh();
+        if (cancelled) return;
+
         const [savedToken, savedUser] = await Promise.all([
           authStorage.getAccessToken(),
           authStorage.getUser(),
@@ -90,19 +111,28 @@ export default function App() {
         if (cancelled) return;
         setPrefs(preferences);
         setDailyGoal(preferences.dailyGoal);
-      } catch {
+      } catch (error) {
         if (!cancelled) {
-          await clearAuthSession();
-          setToken(null);
-          setUser(null);
+          const keepCredentials =
+            error instanceof ApiError &&
+            (error.kind === "offline" || error.kind === "network");
+          if (!keepCredentials) {
+            await clearAuthSession();
+            setToken(null);
+            setUser(null);
+          }
         }
       } finally {
-        if (!cancelled) setBootstrapping(false);
+        if (!cancelled) {
+          window.clearTimeout(bootTimeout);
+          setBootstrapping(false);
+        }
       }
     }
-    bootstrap();
+    void bootstrap();
     return () => {
       cancelled = true;
+      window.clearTimeout(bootTimeout);
     };
   }, []);
 

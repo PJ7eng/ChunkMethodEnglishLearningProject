@@ -15,6 +15,11 @@ node_modules/
 .env
 .env.*
 !.env.example
+!.env.android-production.example
+
+# Android signing material (never commit)
+*.keystore
+*.jks
 
 # Logs
 npm-debug.log*

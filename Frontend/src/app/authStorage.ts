@@ -1,5 +1,9 @@
 import type { AuthUser } from "./api";
 import { isNativePlatform } from "./platform";
+import {
+  keystoreRefreshStore,
+  type SecureRefreshStore,
+} from "./secureRefreshStore";
 
 export interface AuthSession {
   accessToken: string;
@@ -13,6 +17,7 @@ export interface AuthStorage {
   getUser(): Promise<AuthUser | null>;
   setSession(session: AuthSession): Promise<void>;
   setAccessToken(token: string): Promise<void>;
+  setRefreshToken(token: string): Promise<void>;
   setUser(user: AuthUser): Promise<void>;
   clear(): Promise<void>;
 }
@@ -30,70 +35,86 @@ function parseStoredUser(value: string | null): AuthUser | null {
   }
 }
 
-const webAuthStorage: AuthStorage = {
-  async getAccessToken() {
-    return localStorage.getItem(ACCESS_TOKEN_KEY);
-  },
-  async getRefreshToken() {
-    // Web refresh credentials remain in the HttpOnly cookie.
-    return null;
-  },
-  async getUser() {
-    return parseStoredUser(localStorage.getItem(USER_KEY));
-  },
-  async setSession(session) {
-    localStorage.setItem(ACCESS_TOKEN_KEY, session.accessToken);
-    localStorage.setItem(USER_KEY, JSON.stringify(session.user));
-  },
-  async setAccessToken(token) {
-    localStorage.setItem(ACCESS_TOKEN_KEY, token);
-  },
-  async setUser(user) {
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
-  },
-  async clear() {
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-  },
-};
+export function createWebAuthStorage(): AuthStorage {
+  return {
+    async getAccessToken() {
+      return localStorage.getItem(ACCESS_TOKEN_KEY);
+    },
+    async getRefreshToken() {
+      // Web refresh credentials remain in the HttpOnly cookie.
+      return null;
+    },
+    async getUser() {
+      return parseStoredUser(localStorage.getItem(USER_KEY));
+    },
+    async setSession(session) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, session.accessToken);
+      localStorage.setItem(USER_KEY, JSON.stringify(session.user));
+    },
+    async setAccessToken(token) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, token);
+    },
+    async setRefreshToken(_token: string) {
+      // Web does not persist refresh tokens in JS storage.
+    },
+    async setUser(user) {
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+    },
+    async clear() {
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+    },
+  };
+}
 
-let nativeAccessToken: string | null = null;
-let nativeRefreshToken: string | null = null;
-let nativeUser: AuthUser | null = null;
+export function createNativeAuthStorage(store: SecureRefreshStore): AuthStorage {
+  let accessToken: string | null = null;
+  let user: AuthUser | null = null;
+  let refreshCache: string | null | undefined;
 
-/**
- * Safe pre-Capacitor boundary. Credentials are memory-only until an Android
- * Keystore-backed implementation is injected; refresh tokens never fall back
- * to localStorage or Preferences.
- */
-const nativeAuthStorageStub: AuthStorage = {
-  async getAccessToken() {
-    return nativeAccessToken;
-  },
-  async getRefreshToken() {
-    return nativeRefreshToken;
-  },
-  async getUser() {
-    return nativeUser;
-  },
-  async setSession(session) {
-    nativeAccessToken = session.accessToken;
-    nativeRefreshToken = session.refreshToken ?? null;
-    nativeUser = session.user;
-  },
-  async setAccessToken(token) {
-    nativeAccessToken = token;
-  },
-  async setUser(user) {
-    nativeUser = user;
-  },
-  async clear() {
-    nativeAccessToken = null;
-    nativeRefreshToken = null;
-    nativeUser = null;
-  },
-};
+  return {
+    async getAccessToken() {
+      return accessToken;
+    },
+    async getRefreshToken() {
+      if (refreshCache === undefined) {
+        refreshCache = await store.get();
+      }
+      return refreshCache;
+    },
+    async getUser() {
+      return user;
+    },
+    async setSession(session) {
+      accessToken = session.accessToken;
+      user = session.user;
+      if (session.refreshToken) {
+        refreshCache = session.refreshToken;
+        await store.set(session.refreshToken);
+      } else {
+        refreshCache = null;
+        await store.clear();
+      }
+    },
+    async setAccessToken(token) {
+      accessToken = token;
+    },
+    async setRefreshToken(token) {
+      refreshCache = token;
+      await store.set(token);
+    },
+    async setUser(nextUser) {
+      user = nextUser;
+    },
+    async clear() {
+      accessToken = null;
+      user = null;
+      refreshCache = null;
+      await store.clear();
+    },
+  };
+}
 
 export const authStorage: AuthStorage = isNativePlatform
-  ? nativeAuthStorageStub
-  : webAuthStorage;
+  ? createNativeAuthStorage(keystoreRefreshStore)
+  : createWebAuthStorage();

@@ -1,10 +1,172 @@
 # ChunkMaster 開發進度總結
 
-> **更新日期**：2026-09-07
+> **更新日期**：2026-09-09
 > **產品定位**：以 chunk（片語／語塊）為單位的英語學習 App  
-> **技術棧**：Frontend — React + Vite + TypeScript + PWA／Capacitor Android（待建）；Backend — NestJS + Prisma + PostgreSQL；LLM — DeepSeek Chat Completions（本機已接通）  
+> **技術棧**：Frontend — React + Vite + TypeScript + PWA／Cloudflare Pages（學習 Web＋Admin）；Capacitor 8 Android（M2 Debug、M3 Keystore 已在模擬器與實機驗收）；Backend — NestJS + Prisma，本機 Docker Postgres／雲端 Neon；API 託管 Railway；LLM — DeepSeek Chat Completions（本機與雲端 Admin 均已接通）  
 > **發布目標**：私下分發 signed Android APK（獨立主畫面圖示）；Web 保留學習入口及 Admin 後台。不上架 Google Play。  
-> **當前階段**：本機 Admin → DeepSeek 生成 → 待審 → 核准 → 學習端可用，已實測成功。Admin 生成 UX、同一天可重排、分類內防重複 prompt（`v1.3.0`）已接上。下一里程碑仍是 [V1_PLAN.md](V1_PLAN.md) **M1**（發布身份、域名、雲端 staging）。尚未建立 Capacitor `android/`，正式 300–500 條審核內容尚未量產。
+> **發布身分（已定）**：Android application ID `com.pjfrank.chunkmaster`；主畫面顯示名稱 **ChunkMaster**。先用 Railway／Cloudflare Pages 預設 HTTPS，暫不買自訂網域。  
+> **當前階段**：[V1_PLAN.md](V1_PLAN.md) **M2、M3 已勾選**。下一主線是 **M4** 實機 UX／網路狀態。Resend 郵件流程仍為 M1 剩餘。Debug APK 不是給熟人的正式包。
+
+---
+
+### 2026-09-09 — M3 模擬器＋實機驗收通過（殺行程仍登入）
+- 完成：
+  - 營運者確認 M3 衝刺門檻全過：模擬器與至少一台實體 Android 皆為登入 → 多工畫面殺掉行程 → 再開仍進 Home；Settings 登出 → 再開回到登入頁（Keystore refresh 不殘留）；Logcat／console 未出現 token。
+  - 驗收前修好啟動卡在 Loading：`await` Capacitor `SecureStorage` 物件會呼叫不存在的 `.then()`，bootstrap 永不結束。改為只呼叫 `getItem`／`setItem`／`removeItem`，並為啟動加 25 秒上限。
+- 修改文件：
+  - `Frontend/src/app/secureRefreshStore.ts`、`secureRefreshStore.test.ts`、`App.tsx`
+  - `docs/progress.md`、`docs/V1_PLAN.md`、`docs/README.md`
+- 驗證命令與結果：
+  - Frontend typecheck 通過；Vitest 19／19。
+  - 由營運者在模擬器與實機 Debug 確認殺行程／登出／token 不外洩（本筆記為驗收紀錄）。
+- Artifact／URL：
+  - 本機 Debug 安裝。無 signed APK。無新雲端 URL。
+- 未完成或阻礙：
+  - 註冊郵件驗證／忘記密碼仍缺 Resend（M1 剩餘，不擋已勾的 M3 Keystore 門檻）。
+  - V1_PLAN M3 較長清單未全測：refresh 重放、清 App data、刪帳號、跨帳號隔離、Android Studio secret inspection。
+  - 正式 release keystore 尚未建立（M6 前必做，不提交 Git）。
+- 給下一個 Agent 的已知陷阱：
+  - 不要 `await SecureStorage` 或從 async 函式 return 該 plugin；Proxy 的 `.then` 會讓啟動卡在 Loading。
+  - 不要把 refresh token 寫進 `@capacitor/preferences` 或 localStorage。不要在 web 啟用該 plugin。
+  - 改 plugin／native 後必須 Android Studio **Rebuild／Run**。只改 JS 也要 `npm run android:sync`。
+  - 不要 commit `.env.android-production` 或 keystore。不要改 `appId`。
+  - Token 不得寫入 Logcat／Sentry／console。
+- 下一步（見第六節）：
+  - 進入 **M4**：實機 UX、鍵盤／safe area、離線／弱網、學習流程走查。不要重寫安全儲存。
+
+---
+
+### 2026-09-09 — M3 native 安全儲存（程式完成，實機殺行程待驗）
+- 完成：
+  - 選用 `@aparajita/capacitor-secure-storage` **8.0.0**（MIT、Capacitor 8、Android Keystore AES-GCM + app SharedPreferences）。不合格才自寫 plugin 的條件未觸發。
+  - Native：access token／user 仍只在記憶體；refresh token 進 Keystore。Web 仍用 Cookie，不呼叫該 plugin（其 web adapter 是明文 localStorage，禁止用於 refresh）。
+  - 啟動時 `restoreSessionWithRefresh()`：無 access 但有 refresh 則 POST `/auth/refresh` body。網路錯誤不清除 Keystore。登出／重設密碼／刪帳號已走 `authStorage.clear()`。
+  - `npx cap sync android` 已註冊 plugin（與 `@capacitor/app` 並列）。
+- 修改文件：
+  - `Frontend/src/app/authStorage.ts`、`secureRefreshStore.ts`、`authStorage.test.ts`、`api.ts`、`api.test.ts`、`App.tsx`
+  - `Frontend/package.json`、`Frontend/package-lock.json`
+  - `Frontend/android/capacitor.settings.gradle`（cap sync 產生）
+  - `docs/progress.md`、`docs/V1_PLAN.md`
+- 驗證命令與結果：
+  - Frontend typecheck 通過；Vitest 17／17。
+  - `npm run build:native:production` 通過；bundle 無 AdminScreen、`chunk_auth_`、localhost:3000、server secret。
+  - `npx cap sync android` 通過；Found `@aparajita/capacitor-secure-storage@8.0.0`。
+  - **尚未**在實機驗證：登入 → 殺掉 App → 再開仍登入；登出後不殘留。
+- Artifact／URL：
+  - 無 signed APK。無新雲端 URL。
+- 未完成或阻礙：
+  - 營運者須再 `npm run android:sync` 後用 Android Studio 重裝 Debug，測殺行程與登出。
+  - 註冊郵件驗證／忘記密碼仍缺 Resend（M1 剩餘，不擋 Keystore 驗收）。
+  - 正式 release keystore 尚未建立（M6 前必做，不提交 Git）。
+- 給下一個 Agent 的已知陷阱：
+  - 不要把 refresh token 寫進 `@capacitor/preferences` 或 localStorage。不要在 web 啟用該 plugin。
+  - Capacitor plugin 必須靜態 import；動態 import 會讓啟動卡在 Loading。Keystore／fetch 已加 timeout，避免永久轉圈。
+  - 改 plugin 後必須 Android Studio **Rebuild／Run**（不能只更新 Web assets）。
+  - 不要 commit `.env.android-production` 或 keystore。不要改 `appId`。
+  - Token 不得寫入 Logcat／Sentry／console。
+- 下一步（見第六節）：
+  - 實機驗收 M3 殺行程仍登入；通過才勾 M3。然後 M4。
+
+---
+
+### 2026-09-09 — M2 Debug 驗收通過（模擬器＋實機）
+- 完成：
+  - 營運者確認 M2 驗收門檻全過：`build:native:production`＋`cap sync`、Android Studio Gradle／Debug、模擬器與至少一台實體 Android 可安裝啟動。
+  - 主畫面與應用程式清單為獨立 **ChunkMaster** 自訂圖示（非 Capacitor 預設機器人）。
+  - App 連現有 Railway HTTPS，不顯示 Admin、不含 server secret；冷啟動、前後台、旋轉、系統返回不白屏。
+  - 本機已用 Node 22+、`Frontend/.env.android-production`（真實 Railway HTTPS，gitignored）、Railway `CORS_ORIGINS` 含 Capacitor `https://localhost`。
+- 修改文件：
+  - `docs/progress.md`、`docs/V1_PLAN.md`、`docs/README.md`
+- 驗證命令與結果：
+  - 由營運者在 Android Studio Debug 於模擬器與實機確認通過（本筆記為驗收紀錄，非新程式變更）。
+- Artifact／URL：
+  - 本機 Debug 安裝。無 signed APK。真實 API／Pages 網址仍只放密碼管理器，不寫進公開文件。
+- 未完成或阻礙：
+  - Native token 仍是記憶體 stub；殺行程後要重登（M3）。
+  - 無 release keystore、無 versionCode 發布流程（M3／M6）。
+  - M1：Resend、Neon 備份還原、DEPLOYMENT 實網址、支援信箱仍未做。
+- 給下一個 Agent 的已知陷阱：
+  - 不要改 `appId`。不要把 Debug APK 當正式包分發。不要 commit `.env.android-production` 或 keystore。
+  - `npx cap *` 需要 Node ≥22。`android/app/src/main/assets/public/` 除 placeholder `index.html` 外不要 commit。
+  - 不要對 Neon seed。不要重做 LLM／Admin 表單／雲端三件套。
+- 下一步（見第六節）：
+  - 進入 **M3**：Android Keystore 支援的安全儲存取代 native auth stub。
+
+---
+
+### 2026-09-08 — M2 Capacitor Android 工程與圖示（repo 側完成，實機未驗收）
+- 完成：
+  - 在 `Frontend` 安裝 Capacitor **8.5.1**（core／android／cli）與 `@capacitor/app` 8.1.1。`appId=com.pjfrank.chunkmaster`、`appName=ChunkMaster`、`webDir=dist`。
+  - `npx cap add android`：`applicationId` 與顯示名稱正確；只申請 `INTERNET`；`usesCleartextTraffic=false` 加 Network Security Config。
+  - 自訂 adaptive／round launcher 與 splash（來源 `public/icon.svg` → `assets/logo.png`／`splash.png`）。
+  - Native 系統返回鍵：overlay 先關、分頁回 Home、註冊回登入，否則 minimize。Web 不註冊 listener。
+  - `android:sync`／`open`／`run`／`apk` scripts。`.env.android-production.example` 已加；真實 URL 不進 Git。Copied web assets gitignore，避免把 API 網址打進 repo。
+  - 本機用 `VITE_API_BASE_URL=https://api.example.invalid` 跑過 `build:native:production`：bundle 含該 API、含 backButton；**沒有** AdminScreen、`chunk_auth_`、localhost:3000、server secret。`npx cap sync android` 成功。
+- 修改文件：
+  - `Frontend/capacitor.config.ts`、`Frontend/package.json`、`Frontend/package-lock.json`、`Frontend/.gitignore`
+  - `Frontend/src/app/App.tsx`、`useNativeBackButton.ts`、`nativeBackButton.ts`、`nativeBackButton.test.ts`
+  - `Frontend/src/styles/index.css`、`Frontend/vite.config.ts`、`Frontend/scripts/generate-android-assets.mjs`
+  - `Frontend/android/**`、`Frontend/assets/logo.png`、`Frontend/assets/splash.png`
+  - `Frontend/.env.example`、`Frontend/.env.android-production.example`、`Backend/.env.example`、`Backend/.gitignore`
+  - `docs/progress.md`、`docs/V1_PLAN.md`、`docs/DEPLOYMENT.md`、`docs/README.md`
+- 驗證命令與結果：
+  - Frontend typecheck 通過；Vitest 10／10。
+  - `npm run build:native:production`（placeholder HTTPS）通過；`npx cap sync android` 通過。
+  - 本機系統 Node 為 **v20.18.0**；Capacitor CLI 拒絕 20，本次用 portable Node **22.23.2** 執行 cap。
+  - 未跑 Android Studio Gradle／Emulator／實機（本機無完整 Android SDK 驗收證據）。
+- Artifact／URL：
+  - `Frontend/android/` Debug 工程。無 signed APK。`.env.android-production` 尚未建立。
+- 未完成或阻礙（M2 驗收剩餘）：
+  - 營運者須安裝 Node 22+。
+  - 建立 `Frontend/.env.android-production` 填真實 Railway HTTPS。
+  - Railway `CORS_ORIGINS` 加上 `https://localhost`（保留 Pages 網址）。
+  - Android Studio Otter 2025.2.1+、SDK 36、模擬器＋實機 Debug 安裝與主畫面圖示確認。
+- 給下一個 Agent 的已知陷阱：
+  - `npx cap *` 需要 Node ≥22。不要改 `appId`。
+  - `android/app/src/main/assets/public/` 除 placeholder `index.html` 外不要 commit（避免 API URL 進 Git）。
+  - Native token 仍是記憶體 stub；殺行程後要重登是 M2 可接受、M3 才做安全儲存。
+  - 不要對 Neon seed。不要開 CapacitorHttp，除非 CORS 加了 origin 仍失敗。
+- 下一步（見第六節）：
+  - 當時待營運者完成 Node 22、env、CORS、實機驗收。**已於 2026-09-09 勾選 M2。**
+
+---
+
+### 2026-09-08 — M1 雲端 staging 核心打通（Neon／Railway／Pages）
+- 完成：
+  - 固定發布身分：`com.pjfrank.chunkmaster`、顯示名稱 ChunkMaster。不上架 Play；先接受平台預設 HTTPS。
+  - Neon Free：Direct／Unpooled `DATABASE_URL`（host 不含 `-pooler`，含 `sslmode=require`）。雲端未跑 `prisma db seed`。
+  - Railway API：Root Directory `Backend`、Dockerfile 建置、Wait for CI、replicas=1。Variables 含 Neon URL、`JWT_SECRET`、`NODE_ENV=production`、DeepSeek（本機慣例把 key 放在 `OPENAI_API_KEY`）、完整 `AI_BASE_URL=https://api.deepseek.com/chat/completions`。未自設 `PORT`。服務狀態 Active／Online。
+  - Cloudflare Pages：root `Frontend`，`npm ci && npm run build`，output `dist`，`VITE_API_BASE_URL` 指向 Railway HTTPS，`VITE_APP_PLATFORM=web`。
+  - Railway `CORS_ORIGINS`／`APP_URL` 改為 Pages HTTPS（無結尾斜線）。
+  - 外網實測：`/health`、`/ready`（database ok）；Pages 註冊／登入／學習／筆記；Neon SQL 將營運者升為 `super_admin` 後 `/admin` 生成→待審→核准→學習端可見。
+  - Dockerfile／Prisma 修好 Alpine 啟動崩潰：`openssl`＋`libc6-compat`；`prisma generate` 後 `chown` 給 `node`；`binaryTargets` 含 `linux-musl-openssl-3.0.x`。否則 `USER node` 跑 `migrate deploy` 會無法寫入 `/app/node_modules/@prisma/engines`。
+  - CI audit：後端 `fast-uri` 3.1.7、`qs` 6.16.0；前端 `browserslist` 4.28.9。`overrides` 防止退回有洞版本。
+- 修改文件：
+  - `Backend/Dockerfile`、`Backend/prisma/schema.prisma`、`Backend/.env.example`
+  - `Backend/package.json`、`Backend/package-lock.json`（先前 commit）
+  - `Frontend/package.json`、`Frontend/package-lock.json`
+  - `docs/progress.md`
+- 驗證命令與結果：
+  - 本機：前後端 `npm audit --audit-level=high` 0 vulnerabilities；Backend typecheck／27 unit tests／build；Frontend typecheck／Vitest 5/5／production build。
+  - 本機 `docker build` 因 Docker Desktop 未開而未驗證；Railway 重建後 Active／Online。
+  - 雲端：`GET /health`、`GET /ready` 200；Pages 學習與 Admin 審核閉環由營運者確認通過。
+- Artifact／URL：
+  - Railway `https://*.up.railway.app` 與 Cloudflare `https://*.pages.dev`（實網址只放營運者密碼管理器／Railway／Pages 設定，不寫進公開文件除非營運者要求）。
+  - 無 Capacitor `android/`、無 signed APK。金鑰只在 Railway Variables 與本機 `Backend/.env`，不得提交 Git。
+- 未完成或阻礙（M1 驗收剩餘）：
+  - Resend 未開；`REQUIRE_EMAIL_VERIFICATION` 仍為 false。手機瀏覽器真實驗證信／重設密碼未跑通。
+  - Neon 備份還原演練未做；[DEPLOYMENT.md](DEPLOYMENT.md) 尚未寫入真實網址與回滾紀錄。
+  - 支援聯絡方式未正式定稿。Sentry 雲端 DSN 未設。
+  - `SUPER_ADMIN_EMAIL` 不會自動升權（只在 seed）；雲端用 SQL `UPDATE "User"`。
+- 給下一個 Agent 的已知陷阱：
+  - Railway 必須 Root Directory=`Backend`，否則 Railpack 掃 repo 根目錄失敗。GitHub App 失去 repo 權限時會「could not retrieve source」。
+  - Neon 用 Direct 字串。Pooled（`-pooler`）常讓啟動時 `migrate deploy` 失敗。本機 `.env` 維持 localhost，不要把 Neon URL 當日常開發庫。
+  - 不要自設 Railway `PORT`。`ENABLE_SWAGGER` 雲端應為 false。DeepSeek key 可用 `OPENAI_API_KEY` 或 `AI_API_KEY`，擇一。
+  - `npx cap init` 使用已定 `appId=com.pjfrank.chunkmaster`、`appName=ChunkMaster`；release 的 `VITE_API_BASE_URL` 必須是 Railway HTTPS，不得 localhost。
+  - 雲端禁止 `prisma db seed`。卡住的 `running` job 仍無自動回收。
+- 下一步（見第六節）：
+  - 不要重做 LLM、Admin 表單或雲端三件套（Neon／Railway／Pages），除非修郵件、備份或卡住 job。
+  - 發布主線進入 M2 Capacitor。可並行用雲端 `/admin` 量產並人工審核。
 
 ---
 
@@ -187,7 +349,8 @@
 - NestJS 11 模組化架構 + Prisma ORM + PostgreSQL 16
 - JWT／Cookie 認證、RBAC、Helmet、CORS allowlist、rate limit、request ID
 - Docker Compose 啟動資料庫；種子腳本擴充至約 15 條多分類 idioms
-- Backend multi-stage Dockerfile、GitHub Actions CI、Swagger `/docs`
+- Backend multi-stage Dockerfile（Alpine 含 openssl／libc6-compat，`chown` 後以 `node` 跑 `migrate deploy`）、GitHub Actions CI、Swagger `/docs`（雲端 `ENABLE_SWAGGER=false`）
+- **雲端 staging 已部署**：Neon Postgres（Direct URL）＋ Railway NestJS（replicas=1）＋ Cloudflare Pages Web／Admin
 - `/health` 與含 DB 探活的 `/ready`
 - 前後端 Sentry 初始化及後端結構化 HTTP 日誌
 
@@ -240,7 +403,7 @@
 
 ### 7. Generation（`/admin/generation`，需 content_admin）
 - HTTP 只建立 job；API 行程內 worker 每 5 秒撈 `pending`（`GENERATION_WORKER_ENABLED`）
-- **本機已接通 DeepSeek**（`AI_BASE_URL` 須含 `/chat/completions` + `json_object`）。無 key 或模型失敗時 job 失敗，不使用模板冒充內容
+- **本機與 Railway 雲端均已接通 DeepSeek**（`AI_BASE_URL` 須含 `/chat/completions` + `json_object`）。無 key 或模型失敗時 job 失敗，不使用模板冒充內容。Key 讀 `AI_API_KEY`／`DEEPSEEK_API_KEY`／`OPENAI_API_KEY`（本機與 Railway 目前把 DeepSeek key 放在 `OPENAI_API_KEY`）
 - 打 OpenAI 相容 URL 時仍可用 `json_schema`；由 `AI_JSON_MODE` 或是否 `deepseek.com` 決定
 - Prompt `v1.3.0`：只把該分類已有 phrase 列入禁止清單；另有批次內／全域 `phraseKey` 去重
 - 已取消日冪等；同一天同一分類可重排。仍限制批次 1–50、每日 job 上限、category／difficulty 白名單
@@ -288,11 +451,17 @@ flowchart LR
   GenAPI --> DeepSeek[DeepSeek Chat Completions]
 ```
 
-**一句話**：本機學習閉環、Admin 審核與 DeepSeek 教材生成已打通；V1 發布目標仍是私下分發獨立 Android APK，雲端與 Capacitor 尚未開始。
+**一句話**：本機與雲端學習閉環、Admin 審核、獨立圖示 Debug App、M3 Keystore 殺行程仍登入均已打通。尚無 signed APK。
 
 ---
 
 ## 四、工程驗證現況
+
+2026-09-09 M3：Keystore refresh 已接並在模擬器＋實機驗收通過（殺行程仍登入、登出不殘留、token 不進 Logcat）。Vitest 19／19。啟動卡 Loading 的 `SecureStorage.then` 已修。
+
+2026-09-09 Android：營運者確認 M2 全過——Android Studio Debug 於模擬器與實機可安裝啟動；獨立 ChunkMaster 圖示；連 Railway HTTPS；無 Admin；冷啟動／前後台／旋轉／返回不白屏。
+
+2026-09-08 雲端：Railway Active／Online；`/health` 與 `/ready` 200；Pages 註冊、學習、筆記及 Admin 生成審核由營運者確認。本機前後端 high audit 0；Backend tests 27／27；Frontend Vitest 10／10（含 native 返回鍵）。
 
 2026-09-07 本機：Admin 生成確認／鎖定／輪詢與分類防重複 prompt 已接上。Generation 單元測試通過（含同一天兩次 createJob、prompt 只含同分類片語）。
 
@@ -315,13 +484,13 @@ flowchart LR
 ## 五、尚待完成
 
 ### 1. V1 發布工作
-- 確認 application ID、App 顯示名稱、網域或 HTTPS 預設網址、支援聯絡方式（不要建立 Play Console）
-- 建立 Cloudflare Pages、Railway、Neon、Resend、**DeepSeek**、Sentry 的 staging／production 資源（LLM 不要再預設成必須開 OpenAI 帳號）
-- 建立 Capacitor Android 工程、獨立 launcher icon，完成 native auth、安全儲存、back button、safe area 與網路狀態
+- ~~確認 application ID、App 顯示名稱、先用平台 HTTPS~~：已定 `com.pjfrank.chunkmaster`／ChunkMaster／Railway＋Pages 預設網址。支援聯絡方式仍未定稿
+- ~~Neon＋Railway＋Cloudflare Pages＋DeepSeek 雲端 secret~~：已部署並實測。尚未：Resend、Sentry 雲端、第二套 production 與自訂網域
+- ~~Capacitor Android 工程、獨立圖示、Debug 模擬器＋實機、Keystore 殺行程仍登入~~：M2／M3 已驗收。下一主線 M4 實機 UX／網路狀態
 - 建立 signed release APK、固定 keystore、versionCode 遞增及給熟人的安裝／升級說明
-- **本機生成管線已通**；尚需以 Admin 人工審核並累積首批 300–500 個 chunks。分發環境不得外洩未審內容
+- **本機與雲端生成管線已通**；尚需以 Admin 人工審核並累積首批 300–500 個 chunks。分發環境不得外洩未審內容
 - 在實機完成核心流程與內容品質修正
-- 執行 Neon 備份還原及應用回滾演練
+- 執行 Neon 備份還原及應用回滾演練；更新 [DEPLOYMENT.md](DEPLOYMENT.md) 真實網址（勿把私有連結寫進公開 repo 若營運者不願公開）
 - 補齊給受邀者的隱私、條款、支援與刪除說明；不填 Play Data safety 或 Store listing
 - 可選：卡住的 `running` job 自動回收；Admin 編輯改為表單而非 `window.prompt`；待審頁自動刷新
 
@@ -343,10 +512,10 @@ flowchart LR
 
 ## 六、下一階段衝刺焦點
 
-1. **不要重做 LLM 接線或 Admin 生成表單**，除非要改卡住 job 回收、編輯 UI 或模型。本機 DeepSeek 與分類防重複 prompt 已驗證。
-2. 可並行：用 `/admin` 繼續生成並人工核准，累積面向熟人的題庫（目標 300–500，品質優先）。同一天同一分類可再排。
-3. 發布主線仍是 M1：application ID、App 顯示名稱、可從外網連的 HTTPS API／網域。
-4. M1 通過後建立 Capacitor Android 工程與獨立圖示，再依 [V1 計劃](V1_PLAN.md) 做 signed APK。
-5. 雲端部署時把 DeepSeek key 與完整 `AI_BASE_URL`（含 `/chat/completions`）放進後端 Secret，前端／APK 不得帶入。
+1. **不要重做** LLM、Admin 表單、雲端三件套、Capacitor 工程／圖示、Keystore 安全儲存，或改 `appId`。不要把 refresh token 改存 Preferences／localStorage。不要 `await SecureStorage`。
+2. 進入 **M4**：實機 UX（鍵盤、safe area、離線／弱網）、學習／Challenge／Review／Notes 走查。Settings 未實作的提醒／haptic 不得顯示為可用。
+3. 可並行：雲端 `/admin` 生成並人工核准，累積 300–500。不要對 Neon 跑 seed。
+4. Debug APK 不是給熟人的正式包。signed APK 屬 **M6**。
+5. M1 收尾可後補：Resend＋驗證信、Neon 備份還原、DEPLOYMENT 實網址、支援信箱。
 
 分發給他人前不得跳過人工內容審核、資料備份、權限驗證及回滾演練。

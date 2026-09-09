@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => {
   const platform = isNativeProduction ? 'native' : (env.VITE_APP_PLATFORM || 'web')
   const isProductionMode = mode === 'production' || isNativeProduction
   const isDeployedMode = isProductionMode || mode === 'staging'
-  const apiUrl = env.VITE_API_BASE_URL?.trim()
+  const apiUrl = (env.VITE_API_BASE_URL || process.env.VITE_API_BASE_URL)?.trim()
 
   if (platform !== 'web' && platform !== 'native') {
     throw new Error('VITE_APP_PLATFORM must be "web" or "native".')

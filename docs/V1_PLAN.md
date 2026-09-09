@@ -1,9 +1,9 @@
 # ChunkMaster V1：私下分發 Android APK 計劃
 
-> 更新日期：2026-09-01  
+> 更新日期：2026-09-09  
 > 最終目標：學習者在主畫面看到獨立 ChunkMaster 圖示，安裝簽過名的 Android APK；以側載私下分發給自己與熟人，不上架 Google Play。  
 > 技術路徑：現有 React/Vite 學習者端 + Capacitor Android；NestJS API 部署到 Railway；PostgreSQL 使用 Neon；Admin 維持 Web 後台。  
-> 當前狀態：Web 核心、後端、SRS、AI 內容審核與本機測試骨架已完成；雲端 staging、Capacitor `android/`、launcher icon 與 signed APK 尚未開始。  
+> 當前狀態：M1 雲端核心已通（郵件／備份尚未勾完）。**M2、M3 已驗收**（Debug 安裝、獨立圖示、Railway HTTPS、Keystore 殺行程仍登入）。下一主線是 M4 實機 UX。signed APK 屬 M6。  
 > 本文件是後續 Agent 的主要執行路線。實際進度與驗證結果同步記錄到 [README.md](README.md) 與 [progress.md](progress.md)。
 
 ## 1. 不可偏離的發布目標
@@ -75,22 +75,24 @@ flowchart LR
 - Web／Native `AuthStorage` 邊界；native production build 排除 Admin，並禁止 production API 指向 localhost。
 - Backend unit／service 測試、Frontend Vitest、Playwright learner smoke、CI audit 與 Gitleaks。
 - 基本 Web PWA；這不等於獨立 Android 圖示，也不算 APK 交付。
+- Capacitor 8 Android 工程（`com.pjfrank.chunkmaster`）、自訂 launcher／splash、HTTPS-only Network Security Config、系統返回鍵（native 建置）。
+- M2 Debug 驗收：模擬器與實體裝置可安裝啟動；獨立 ChunkMaster 圖示；連 Railway HTTPS；無 Admin。
+- M3 Keystore 驗收：`@aparajita/capacitor-secure-storage` 8；access token 只在記憶體；refresh 進 Keystore。模擬器與實機：殺掉行程後仍登入；登出後不殘留；token 不進 Logcat。
 
 ### 尚未完成
 
-- Frontend 尚未安裝 Capacitor，沒有 `android/` 工程、launcher icon 或 signed APK。
-- 沒有固定 application ID、versionCode 或 release keystore。
-- 尚未建立 staging／production 雲端資源及自訂域名；熟人手機因此還連不到正式 API。
-- Native secure storage 仍是 stub；Android back button、keyboard、network plugin、local notification 尚未接上。
+- 沒有 versionCode 發布流程或 release keystore（M6）。
+- keyboard、network plugin、local notification 尚未接上（M4）。
 - 沒有給收件人的安裝／升級說明。
 - 正式隱私／條款頁仍是草稿；私下分發不需要 Play Data safety，但仍應讓受邀者知道聯絡方式與刪除帳號入口。
+- Resend 驗證信／忘記密碼、Neon 備份還原（M1 剩餘）。
 
 ## 5. 里程碑總覽
 
 - [x] M0：Web／Backend V1 基線及本機資料庫驗證
 - [ ] M1：發布身份、域名與雲端 Staging
-- [ ] M2：Capacitor Android 工程、獨立圖示與可安裝 Debug App
-- [ ] M3：Native Auth、安全儲存與 HTTPS 驗證流程
+- [x] M2：Capacitor Android 工程、獨立圖示與可安裝 Debug App
+- [x] M3：Native Auth、安全儲存與 HTTPS 驗證流程
 - [ ] M4：Android UX、網路狀態及學習功能驗收
 - [ ] M5：內容、邀請說明與基本隱私頁
 - [ ] M6：Signed release APK、分發與升級
@@ -186,12 +188,12 @@ npx cap open android
 
 ### M2 驗收門檻
 
-- [ ] `npm run build:native:production` 後 `npx cap sync android` 成功。
-- [ ] Android Studio Gradle sync、Debug build 成功。
-- [ ] Emulator 及至少一台實體 Android 裝置可安裝／啟動。
-- [ ] 安裝後主畫面與應用程式清單出現獨立 App 名稱與自訂圖示。
-- [ ] App 不連 localhost、不顯示 Admin、不包含任何 server secret。
-- [ ] 冷啟動、背景／前景切換、螢幕旋轉及系統返回鍵不造成白屏或資料遺失。
+- [x] `npm run build:native:production` 後 `npx cap sync android` 成功。
+- [x] Android Studio Gradle sync、Debug build 成功。
+- [x] Emulator 及至少一台實體 Android 裝置可安裝／啟動。
+- [x] 安裝後主畫面與應用程式清單出現獨立 App 名稱與自訂圖示。
+- [x] App 不連 localhost、不顯示 Admin、不包含任何 server secret。
+- [x] 冷啟動、背景／前景切換、螢幕旋轉及系統返回鍵不造成白屏或資料遺失。
 
 ## 8. M3：Native Auth、驗證連結與安全
 
@@ -201,7 +203,7 @@ npx cap open android
 
 - 維持 `AuthStorage` interface，分為 Web 與 Native 實作。
 - Android access token 優先只存在 memory。
-- Android refresh token 存 Android Keystore 支援的安全儲存，不存一般 localStorage／Preferences。目前 native stub 只使用記憶體，M3 必須換成真實安全儲存。
+- Android refresh token 存 Android Keystore 支援的安全儲存，不存一般 localStorage／Preferences。已用 `@aparajita/capacitor-secure-storage` 8 取代 native 記憶體 stub，並在模擬器＋實機驗收殺行程仍登入。
 - 後端已支援 request body refresh token；Native adapter 使用此路徑。
 - logout、password reset、account deletion 必須清除 native secure storage。
 - 不得在 Sentry、console、Logcat 或 analytics 記錄 token。
@@ -226,10 +228,13 @@ V1 可接受系統瀏覽器完成驗證，不強制 Android App Links：
 
 ### M3 驗收門檻
 
-- [ ] 註冊 → 郵件連結（瀏覽器或 App）→ 驗證 → 登入完整通過。
-- [ ] 忘記密碼 → 重設 → 舊 session 全部失效。
-- [ ] Access token 過期可安靜 refresh；refresh 重放被拒。
-- [ ] 清除 App data、登出、刪除帳號後 credential 不殘留。
+- [x] 模擬器＋實機：登入 → 殺掉行程 → 再開仍進 Home（Keystore refresh）。
+- [x] 模擬器＋實機：Settings 登出 → 再開需重登；refresh token 不殘留。
+- [x] Logcat／console 未出現 token。
+- [ ] 註冊 → 郵件連結（瀏覽器或 App）→ 驗證 → 登入完整通過。（M1 剩餘 Resend，不擋已勾的 M3）
+- [ ] 忘記密碼 → 重設 → 舊 session 全部失效。（同上）
+- [ ] Access token 過期可安靜 refresh；refresh 重放被拒。（冷啟動 refresh 已由殺行程測試覆蓋；重放未另測）
+- [ ] 清除 App data、刪除帳號後 credential 不殘留。（登出已測）
 - [ ] 另一帳號不能讀寫原帳號 Notes／Progress。
 - [ ] Android Studio inspection 未發現 hardcoded secret 或 cleartext endpoint。
 
@@ -431,12 +436,11 @@ Tag／manual release：
 
 ## 15. 下一個 Context 的明確起點
 
-下一步是 M1，不是直接加入 Capacitor：
+下一步是 **M4 實機 UX**，不是重寫安全儲存，也不是 signed APK：
 
-1. 詢問並固定 application ID、App 顯示名稱、域名或 HTTPS 預設網址、支援聯絡方式。
-2. 建立或確認 Cloudflare、Neon、Railway、Resend、Sentry、OpenAI 帳號（不要建立 Play Console）。
-3. 先完成 staging API／DB／Email，並用手機瀏覽器跑通註冊與驗證。
-4. M1 驗收通過後，再進入 M2 建立 `Frontend/android/`、獨立圖示與 Debug 安裝。
-5. M6 才產出給熟人的 signed APK。
+1. 不要改 `appId`。不要把 refresh token 改存 Preferences／localStorage。不要 `await SecureStorage`。
+2. 在模擬器與實機走 M4：鍵盤、safe area、離線／弱網、學習／Challenge／Review／Notes。Settings 未實作的提醒／haptic 不得顯示為可用。
+3. 驗證信／Resend 仍為 M1 剩餘。M6 才產出 signed APK。
+4. 可並行用雲端 `/admin` 審核內容，累積 300–500。不要對 Neon seed。
 
-不要在 application ID、顯示名稱與可從外網連到的 API 位址未確認前執行 `npx cap init`。
+application ID 已定為 `com.pjfrank.chunkmaster`，不得更改。

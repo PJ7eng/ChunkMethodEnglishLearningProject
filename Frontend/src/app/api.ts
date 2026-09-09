@@ -2,6 +2,7 @@ import { authStorage, type AuthSession } from "./authStorage";
 import { isNativePlatform } from "./platform";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+const FETCH_TIMEOUT_MS = 15000;
 
 export class ApiError extends Error {
   constructor(
@@ -22,6 +23,18 @@ function networkError(error: unknown): ApiError {
   return new ApiError("無法連線至服務。請稍後再試。", undefined, "network");
 }
 
+async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    throw networkError(error);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function saveAuthSession(response: AuthResponse): Promise<AuthSession> {
   if (!response.token || !response.user) {
     throw new ApiError(response.message || "Authentication failed");
@@ -39,6 +52,42 @@ export function clearAuthSession() {
   return authStorage.clear();
 }
 
+/**
+ * Native: rebuilds an access session from the Keystore refresh token.
+ * Web: no-op (refresh lives in the HttpOnly cookie; /auth/me still works).
+ * Network failures do not wipe stored credentials.
+ */
+export async function restoreSessionWithRefresh(): Promise<boolean> {
+  if (await authStorage.getAccessToken()) return true;
+  const refreshToken = await authStorage.getRefreshToken();
+  if (!refreshToken) return false;
+
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(`${API_BASE_URL}/auth/refresh`, {
+      method: "POST",
+      credentials: isNativePlatform ? "omit" : "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(isNativePlatform ? { refreshToken } : {}),
+    });
+  } catch (error) {
+    throw networkError(error);
+  }
+
+  if (!response.ok) {
+    await authStorage.clear();
+    return false;
+  }
+
+  const auth = (await response.json()) as AuthResponse;
+  if (!auth.token || !auth.user) {
+    await authStorage.clear();
+    return false;
+  }
+  await saveAuthSession(auth);
+  return true;
+}
+
 async function request<T>(
   path: string,
   init?: RequestInit,
@@ -51,7 +100,7 @@ async function request<T>(
   const token = await authStorage.getAccessToken();
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
       ...init,
       credentials: isNativePlatform ? "omit" : "include",
       headers: {
@@ -68,7 +117,7 @@ async function request<T>(
     const refreshToken = await authStorage.getRefreshToken();
     let refreshed: Response;
     try {
-      refreshed = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      refreshed = await fetchWithTimeout(`${API_BASE_URL}/auth/refresh`, {
         method: "POST",
         credentials: isNativePlatform ? "omit" : "include",
         headers: { "Content-Type": "application/json" },
@@ -84,6 +133,9 @@ async function request<T>(
           await saveAuthSession(auth);
         } else {
           await authStorage.setAccessToken(auth.token);
+          if (isNativePlatform && auth.refreshToken) {
+            await authStorage.setRefreshToken(auth.refreshToken);
+          }
         }
       }
       return request<T>(path, init, false);

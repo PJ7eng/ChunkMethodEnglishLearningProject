@@ -22,8 +22,10 @@ Never copy production user data into development.
    one API replica until the worker uses a durable claim loop.
 4. Create a Cloudflare Pages project rooted at `Frontend`, build command
    `npm ci && npm run build`, output `dist`, and set `VITE_API_BASE_URL`.
-5. Allow only the exact Pages custom domains in `CORS_ORIGINS`. Configure
-   `app.example.com`, `api.example.com`, TLS and HSTS.
+5. Allow the exact Pages HTTPS origin **and** the Capacitor Android
+   WebView origin `https://localhost` in `CORS_ORIGINS` (comma-separated, no
+   trailing slash). If Logcat shows `Origin: http://localhost`, add that too.
+   Do not use `*`. Configure custom domains later if purchased.
 6. Configure Sentry release/error tracking before inviting others.
 
 ## Release

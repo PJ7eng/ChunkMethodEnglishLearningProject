@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getTodayProgress,
   loginUser,
+  restoreSessionWithRefresh,
   validateEmail,
   validatePassword,
 } from "./api";
@@ -96,6 +97,23 @@ describe("frontend API contract", () => {
     expect(fetchMock.mock.calls[2][1].headers.Authorization).toBe(
       "Bearer rotated-access",
     );
+  });
+
+  it("does not call refresh on web when no access token is stored", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(restoreSessionWithRefresh()).resolves.toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("skips refresh when an access token is already in web storage", async () => {
+    localStorage.setItem("chunk_auth_token", "existing-access");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(restoreSessionWithRefresh()).resolves.toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("reports offline state without sending a request", async () => {
