@@ -1,9 +1,9 @@
 # ChunkMaster V1：私下分發 Android APK 計劃
 
-> 更新日期：2026-09-09  
+> 更新日期：2026-09-11  
 > 最終目標：學習者在主畫面看到獨立 ChunkMaster 圖示，安裝簽過名的 Android APK；以側載私下分發給自己與熟人，不上架 Google Play。  
 > 技術路徑：現有 React/Vite 學習者端 + Capacitor Android；NestJS API 部署到 Railway；PostgreSQL 使用 Neon；Admin 維持 Web 後台。  
-> 當前狀態：M1 雲端核心已通（郵件／備份尚未勾完）。**M2、M3 已驗收**（Debug 安裝、獨立圖示、Railway HTTPS、Keystore 殺行程仍登入）。下一主線是 M4 實機 UX。signed APK 屬 M6。  
+> 當前狀態：M1 雲端核心已通。**M2、M3 已驗收**。**M4 實機 UX 大半已過**（差驗證信頁，未勾里程碑）。忘記密碼 Resend 已通。下一刀修 `/verify-email`。signed APK 屬 M6。  
 > 本文件是後續 Agent 的主要執行路線。實際進度與驗證結果同步記錄到 [README.md](README.md) 與 [progress.md](progress.md)。
 
 ## 1. 不可偏離的發布目標
@@ -78,14 +78,17 @@ flowchart LR
 - Capacitor 8 Android 工程（`com.pjfrank.chunkmaster`）、自訂 launcher／splash、HTTPS-only Network Security Config、系統返回鍵（native 建置）。
 - M2 Debug 驗收：模擬器與實體裝置可安裝啟動；獨立 ChunkMaster 圖示；連 Railway HTTPS；無 Admin。
 - M3 Keystore 驗收：`@aparajita/capacitor-secure-storage` 8；access token 只在記憶體；refresh 進 Keystore。模擬器與實機：殺掉行程後仍登入；登出後不殘留；token 不進 Logcat。
+- M4 實機（營運者 2026-09-10～11）：小螢幕、兩版本 Android、30 分鐘、學習全流程、匯出／刪帳、離線人話＋重試、Hear phrase（community TTS）。驗證信頁尚未通過。
 
 ### 尚未完成
 
+- M4 驗證信：`/verify-email` 一載入就 POST，掃描器會先消耗 token；忘記密碼已通。修好前不要勾 M4、不要開 `REQUIRE_EMAIL_VERIFICATION=true`。
+- 覆蓋安裝仍登入：營運者未回報。
 - 沒有 versionCode 發布流程或 release keystore（M6）。
-- keyboard、network plugin、local notification 尚未接上（M4）。
+- Settings 未顯示提醒／haptic；不要把它們做成假開關。
 - 沒有給收件人的安裝／升級說明。
-- 正式隱私／條款頁仍是草稿；私下分發不需要 Play Data safety，但仍應讓受邀者知道聯絡方式與刪除帳號入口。
-- Resend 驗證信／忘記密碼、Neon 備份還原（M1 剩餘）。
+- 正式隱私／條款頁仍是草稿；支援聯絡方式未定稿。
+- Neon 備份還原；Resend 強制驗證尚未開。
 
 ## 5. 里程碑總覽
 
@@ -231,8 +234,8 @@ V1 可接受系統瀏覽器完成驗證，不強制 Android App Links：
 - [x] 模擬器＋實機：登入 → 殺掉行程 → 再開仍進 Home（Keystore refresh）。
 - [x] 模擬器＋實機：Settings 登出 → 再開需重登；refresh token 不殘留。
 - [x] Logcat／console 未出現 token。
-- [ ] 註冊 → 郵件連結（瀏覽器或 App）→ 驗證 → 登入完整通過。（M1 剩餘 Resend，不擋已勾的 M3）
-- [ ] 忘記密碼 → 重設 → 舊 session 全部失效。（同上）
+- [ ] 註冊 → 郵件連結（瀏覽器或 App）→ 驗證 → 登入完整通過。（Resend 已寄信；驗證頁一開就消耗 token，尚未通過）
+- [x] 忘記密碼 → 重設 → 舊 session 全部失效。（營運者 2026-09-10 真實驗收）
 - [ ] Access token 過期可安靜 refresh；refresh 重放被拒。（冷啟動 refresh 已由殺行程測試覆蓋；重放未另測）
 - [ ] 清除 App data、刪除帳號後 credential 不殘留。（登出已測）
 - [ ] 另一帳號不能讀寫原帳號 Notes／Progress。
@@ -277,11 +280,11 @@ V1 可接受系統瀏覽器完成驗證，不強制 Android App Links：
 
 ### M4 驗收門檻
 
-- [ ] 360×640 小螢幕到實際測試機無阻斷 UI。
-- [ ] 至少覆蓋你與一名受邀者會用的 Android 版本；不必為 Play 做 API 33–36 全矩陣。
-- [ ] 一台實機完成 30 分鐘學習無 crash、卡死或明顯記憶體問題。
-- [ ] 離線／弱網不產生假成功、重複 Progress 或 Notes 資料丟失。
-- [ ] back、keyboard、驗證連結、TTS／haptics 行為符合設定。
+- [x] 360×640 小螢幕到實際測試機無阻斷 UI。
+- [x] 至少覆蓋你與一名受邀者會用的 Android 版本；不必為 Play 做 API 33–36 全矩陣。
+- [x] 一台實機完成 30 分鐘學習無 crash、卡死或明顯記憶體問題。
+- [x] 離線／弱網不產生假成功、重複 Progress 或 Notes 資料丟失。
+- [ ] back、keyboard、驗證連結、TTS／haptics 行為符合設定。（back／keyboard／TTS 已過；驗證連結未過；haptic 未做成可用開關）
 
 ## 10. M5：內容、邀請說明與基本隱私
 
@@ -436,11 +439,11 @@ Tag／manual release：
 
 ## 15. 下一個 Context 的明確起點
 
-下一步是 **M4 實機 UX**，不是重寫安全儲存，也不是 signed APK：
+下一步是 **修好驗證信再勾 M4**，不是重寫學習 UX，也不是 signed APK：
 
-1. 不要改 `appId`。不要把 refresh token 改存 Preferences／localStorage。不要 `await SecureStorage`。
-2. 在模擬器與實機走 M4：鍵盤、safe area、離線／弱網、學習／Challenge／Review／Notes。Settings 未實作的提醒／haptic 不得顯示為可用。
-3. 驗證信／Resend 仍為 M1 剩餘。M6 才產出 signed APK。
-4. 可並行用雲端 `/admin` 審核內容，累積 300–500。不要對 Neon seed。
+1. 不要改 `appId`。不要 `await SecureStorage`／`TextToSpeech` 插件物件。不要把 refresh 存 Preferences／localStorage。
+2. `Frontend/src/app/pages/Auth/accountActionScreen.tsx`：驗證改為按鈕才 POST `/auth/verify-email`。`Backend/src/auth/auth.service.ts` `verifyEmail`：已用且 user 已驗證則回成功。可選重寄驗證信。
+3. Railway：`EMAIL_FROM` 必須是 Resend 允許的 From（測試 `beth.t@example.com`）。修好前 `REQUIRE_EMAIL_VERIFICATION=false`。用新信箱測；註冊若寄信 403，User 可能已寫入 Neon。
+4. 驗證＋覆蓋安裝過了才勾 M4。可並行 `/admin` 審核 300–500。不要對 Neon seed。M6 才 signed APK。
 
 application ID 已定為 `com.pjfrank.chunkmaster`，不得更改。

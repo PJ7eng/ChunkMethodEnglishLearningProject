@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { ProgressBar, Pill, ChunkCard, EmptyState } from "../../components";
+import { ActionError } from "../../components/ActionError";
 import {
   getRandomChunk,
   getCategoryStats,
   getTodayProgress,
   recordProgressAnswer,
+  userFacingError,
   type ChunkResponse,
 } from "../../api";
 import { CATEGORIES } from "../../constants/categories";
@@ -119,7 +121,7 @@ export function HomeScreen({
       setKey((k) => k + 1);
       setShownAt(Date.now());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load chunk");
+      setError(userFacingError(err, "無法載入卡片。請稍後再試。"));
     } finally {
       setLoading(false);
     }
@@ -137,7 +139,7 @@ export function HomeScreen({
       refreshStats();
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save progress");
+      setError(userFacingError(err, "無法儲存進度。請稍後再試。"));
       return false;
     }
   }
@@ -265,9 +267,7 @@ export function HomeScreen({
         }}
       >
         {error && (
-          <div style={{ color: C.red, fontWeight: 800, fontSize: 13 }}>
-            {error}
-          </div>
+          <ActionError message={error} onRetry={chunk ? undefined : draw} />
         )}
         {!chunk ? (
           <EmptyState

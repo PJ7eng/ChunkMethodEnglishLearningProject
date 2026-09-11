@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { Button, SearchBar, CategoryPills, BackButton } from "../../components";
-import { getLearningProgress, type ChunkResponse } from "../../api";
+import { ActionError } from "../../components/ActionError";
+import { getLearningProgress, userFacingError, type ChunkResponse } from "../../api";
 import { getCategoryMeta } from "../../utils/category";
 import { C } from "../../constants/designToken";
+import { canSpeakPhrase, speakPhrase } from "../../phraseSpeech";
 
 interface ChunkWithState extends ChunkResponse {
   needsReview: boolean;
@@ -31,52 +33,53 @@ export function LibraryScreen({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const learning = await getLearningProgress();
-        let merged: ChunkWithState[] = learning
-          .map((entry) => ({
-            ...entry.chunk,
-            pinyin: entry.chunk.pinyin || "",
-            needsReview: entry.needsReview,
-            mastered: entry.mastered,
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      const learning = await getLearningProgress();
+      let merged: ChunkWithState[] = learning
+        .map((entry) => ({
+          ...entry.chunk,
+          pinyin: entry.chunk.pinyin || "",
+          needsReview: entry.needsReview,
+          mastered: entry.mastered,
+        }))
+        .filter((chunk) => filter === "all" || chunk.category === filter);
+
+      if (masteredOnly) {
+        merged = learning
+          .filter((l) => l.mastered)
+          .map((l) => ({
+            ...l.chunk,
+            pinyin: l.chunk.pinyin || "",
+            needsReview: l.needsReview,
+            mastered: true,
           }))
-          .filter((chunk) => filter === "all" || chunk.category === filter);
-
-        if (masteredOnly) {
-          merged = learning
-            .filter((l) => l.mastered)
-            .map((l) => ({
-              ...l.chunk,
-              pinyin: l.chunk.pinyin || "",
-              needsReview: l.needsReview,
-              mastered: true,
-            }))
-            .filter((c) => filter === "all" || c.category === filter);
-        } else if (reviewOnly) {
-          merged = learning
-            .filter((l) => l.needsReview)
-            .map((l) => ({
-              ...l.chunk,
-              pinyin: l.chunk.pinyin || "",
-              needsReview: true,
-              mastered: l.mastered,
-            }))
-            .filter((c) => filter === "all" || c.category === filter);
-        }
-
-        setChunks(merged);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load chunks");
-      } finally {
-        setLoading(false);
+          .filter((c) => filter === "all" || c.category === filter);
+      } else if (reviewOnly) {
+        merged = learning
+          .filter((l) => l.needsReview)
+          .map((l) => ({
+            ...l.chunk,
+            pinyin: l.chunk.pinyin || "",
+            needsReview: true,
+            mastered: l.mastered,
+          }))
+          .filter((c) => filter === "all" || c.category === filter);
       }
-    }
 
-    load();
+      setChunks(merged);
+    } catch (err) {
+      setChunks([]);
+      setError(userFacingError(err, "無法載入學習紀錄。請稍後再試。"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
   }, [filter, masteredOnly, reviewOnly]);
 
   const filtered = chunks.filter(
@@ -160,13 +163,13 @@ export function LibraryScreen({
         }}
       >
         {error && (
-          <div style={{ color: C.red, fontWeight: 800, fontSize: 13, marginBottom: 10 }}>
-            {error}
+          <div style={{ marginBottom: 10 }}>
+            <ActionError message={error} onRetry={() => void load()} />
           </div>
         )}
         {loading ? (
           <div style={{ color: C.gray, fontWeight: 700 }}>Loading chunks...</div>
-        ) : filtered.length === 0 ? (
+        ) : error ? null : filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 20px" }}>
             <div style={{ fontSize: 40, marginBottom: 10 }}>🔍</div>
             <div style={{ color: C.gray, fontWeight: 700, fontSize: 14 }}>
@@ -326,25 +329,19 @@ export function LibraryScreen({
                           </span>
                         </div>
                       ))}
-                      <Button
-                        label={
-                          typeof window !== "undefined" && "speechSynthesis" in window
-                            ? "🔊 Hear phrase"
-                            : "Practice this chunk →"
-                        }
-                        bg={cat.color}
-                        shadow={cat.color + "88"}
-                        size="sm"
-                        full
-                        style={{ marginTop: 4 }}
-                        onClick={() => {
-                          if ("speechSynthesis" in window) {
-                            const u = new SpeechSynthesisUtterance(chunk.phrase);
-                            u.lang = "en-US";
-                            window.speechSynthesis.speak(u);
-                          }
-                        }}
-                      />
+                      {canSpeakPhrase() ? (
+                        <Button
+                          label="🔊 Hear phrase"
+                          bg={cat.color}
+                          shadow={cat.color + "88"}
+                          size="sm"
+                          full
+                          style={{ marginTop: 4 }}
+                          onClick={() => {
+                            void speakPhrase(chunk.phrase);
+                          }}
+                        />
+                      ) : null}
                     </div>
                   </div>
                 )}

@@ -6,12 +6,14 @@ import {
   ConfirmModal,
   NoteFormModal,
 } from "../../components";
+import { ActionError } from "../../components/ActionError";
 import type { NoteFormValues } from "../../components";
 import {
   getNotes,
   createNote,
   updateNote,
   deleteNotes,
+  userFacingError,
 } from "../../api";
 import { getCategoryMeta } from "../../utils/category";
 import { usePress } from "../../hooks/usePress";
@@ -244,12 +246,17 @@ export function NoteScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
+  async function loadNotes() {
+    try {
+      setError(null);
+      setNotes(await getNotes());
+    } catch (err) {
+      setError(userFacingError(err, "無法載入筆記。請稍後再試。"));
+    }
+  }
+
   useEffect(() => {
-    getNotes()
-      .then(setNotes)
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : "Failed to load notes"),
-      );
+    void loadNotes();
   }, []);
 
   const filtered = useMemo(() => {
@@ -275,7 +282,7 @@ export function NoteScreen() {
       setNotes((prev) => [next, ...prev]);
       setModal(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create note");
+      setError(userFacingError(err, "無法新增筆記。請稍後再試。"));
     }
   }
 
@@ -289,7 +296,7 @@ export function NoteScreen() {
       setEditingNote(null);
       setModal(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update note");
+      setError(userFacingError(err, "無法更新筆記。請稍後再試。"));
     }
   }
 
@@ -317,7 +324,7 @@ export function NoteScreen() {
       setModal(null);
       exitSelection();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete notes");
+      setError(userFacingError(err, "無法刪除筆記。請稍後再試。"));
     }
   }
 
@@ -401,7 +408,7 @@ export function NoteScreen() {
           }}
         >
           {error && (
-            <div style={{ color: C.red, fontWeight: 800, fontSize: 13 }}>{error}</div>
+            <ActionError message={error} onRetry={() => void loadNotes()} />
           )}
           {filtered.length === 0 ? (
             <div style={{ textAlign: "center", padding: "48px 20px" }}>

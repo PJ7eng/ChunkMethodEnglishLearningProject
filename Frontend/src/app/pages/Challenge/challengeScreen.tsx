@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import { Button, ProgressBar, FillBlankCard, BackButton } from "../../components";
-import { getRandomChunk, recordProgressAnswer, type ChunkResponse } from "../../api";
+import { ActionError } from "../../components/ActionError";
+import {
+  getRandomChunk,
+  recordProgressAnswer,
+  userFacingError,
+  type ChunkResponse,
+} from "../../api";
 import { C } from "../../constants/designToken";
 
 export interface ChallengeScreenProps {
@@ -41,7 +47,7 @@ export function ChallengeScreen({
       });
       setCardKey((k) => k + 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load challenge");
+      setError(userFacingError(err, "無法載入挑戰。請稍後再試。"));
     } finally {
       setLoading(false);
     }
@@ -56,8 +62,9 @@ export function ChallengeScreen({
       try {
         await recordProgressAnswer(chunk.id, isCorrect);
         if (isCorrect) setScore((s) => s + 1);
-      } catch {
-        /* continue */
+      } catch (err) {
+        setError(userFacingError(err, "無法儲存進度。請稍後再試。"));
+        return;
       }
     }
     if (questionIndex >= totalQuestions) {
@@ -167,7 +174,7 @@ export function ChallengeScreen({
         ) : (
           <>
             {error && (
-              <div style={{ color: C.red, fontWeight: 800, fontSize: 13 }}>{error}</div>
+              <ActionError message={error} onRetry={() => void loadChunk()} />
             )}
             {loading && !chunk && (
               <div style={{ color: C.gray, fontWeight: 700, textAlign: "center", padding: 48 }}>

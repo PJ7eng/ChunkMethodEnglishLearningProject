@@ -1,18 +1,20 @@
 # 📝 項目開發與個人待辦事項 (TODO List)
 
-> **最後更新時間**：2026-07-28
-> **狀態說明**：`[ ]` 待辦 | `[/]` 進行中 | `[x]` 已完成 | `[-]` 已取消/擱置
-測試賬號：test@gmail.com
-測試密碼：123456
-## 已完成（對應路線圖）
-*   [x] P0 真實 Auth 接通 + 登入/註冊校驗與錯誤提示
-*   [x] P0 Progress 寫入/讀取（Home Daily Progress、答題記錄）
-*   [x] P0 Daily/Streak/Preferences API + 前端真實數據
-*   [x] P1 Mastered / NeedsReview 真實狀態 + Review 入口（錯題本）
-*   [x] P2 Notes 雲端同步 + 內容 publish 過濾 + 擴充種子題庫
-*   [x] P3 真實統計餅圖、設定持久化、發音朗讀、答對音效
+> **最後更新時間**：2026-09-11  
+> 給 Agent 的完整交接以 [progress.md](progress.md) 第六節與 [V1_PLAN.md](V1_PLAN.md) 第 15 節為準。
 
-## 後續可選優化
-*   [ ] 推播提醒真正觸發（目前僅偏好開關）
-*   [ ] 更完整聽力練習模式（目前為 Web Speech 朗讀）
-*   [ ] Generation 人工審核後台 UI
+## 下一刀（擋 M4 勾選）
+
+- [ ] 驗證頁改成按鈕「確認驗證信箱」，不要一進 `/verify-email` 就 POST（否則 Gmail／掃描器會先用掉 token）。
+- [ ] 後端 `verifyEmail` 冪等：token 已用過且該帳已驗證 → 回成功，不要報過期。
+- [ ] （可選）重寄驗證信 API；否則失敗只能刪帳或改 SQL。
+- [ ] 用**新信箱**走通：註冊 → 信 → 按鈕驗證 → 登入。`REQUIRE_EMAIL_VERIFICATION` 修好前保持 false。
+- [ ] 覆蓋安裝（不卸載再 Run）仍登入——若尚未測。
+
+## 可後補
+
+- Access token 過期後回到登入頁，避免無登入狀態繼續操作。
+- 驗證／重設頁 UI 重構。
+- Neon 備份還原、支援信箱、DEPLOYMENT 實網址。
+- Admin 審核累積 300–500 chunks（M5）。
+- Signed APK（M6）。不要改 `appId`。

@@ -23,6 +23,61 @@ function networkError(error: unknown): ApiError {
   return new ApiError("無法連線至服務。請稍後再試。", undefined, "network");
 }
 
+function looksLikeHtml(text: string): boolean {
+  const trimmed = text.trimStart();
+  return trimmed.startsWith("<") || /^<!doctype/i.test(trimmed);
+}
+
+function isInternalParseMessage(message: string): boolean {
+  return /unexpected token|not valid json|json\.parse|syntaxerror|<!doctype/i.test(
+    message,
+  );
+}
+
+/** Maps thrown API / parse errors to copy a learner can act on. */
+export function userFacingError(
+  error: unknown,
+  fallback = "無法連線至服務。請稍後再試。",
+): string {
+  if (error instanceof ApiError) return error.message;
+  const message = error instanceof Error ? error.message : "";
+  if (!message || isInternalParseMessage(message) || message.includes("<")) {
+    return fallback;
+  }
+  return message;
+}
+
+async function readJsonBody<T>(response: Response): Promise<T> {
+  const text = await response.text();
+  if (!text) {
+    if (response.status === 204) return undefined as T;
+    throw networkError(undefined);
+  }
+  if (looksLikeHtml(text)) {
+    throw networkError(undefined);
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw networkError(undefined);
+  }
+}
+
+async function readHttpErrorMessage(response: Response): Promise<string> {
+  const text = await response.text().catch(() => "");
+  if (!text || looksLikeHtml(text)) {
+    return "無法連線至服務。請稍後再試。";
+  }
+  try {
+    const body = JSON.parse(text) as { message?: unknown; error?: unknown };
+    let message = body.message || body.error || "Request failed";
+    if (Array.isArray(message)) message = message.join(", ");
+    return typeof message === "string" ? message : "Request failed";
+  } catch {
+    return "無法連線至服務。請稍後再試。";
+  }
+}
+
 async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -79,7 +134,7 @@ export async function restoreSessionWithRefresh(): Promise<boolean> {
     return false;
   }
 
-  const auth = (await response.json()) as AuthResponse;
+  const auth = await readJsonBody<AuthResponse>(response);
   if (!auth.token || !auth.user) {
     await authStorage.clear();
     return false;
@@ -127,7 +182,7 @@ async function request<T>(
       throw networkError(error);
     }
     if (refreshed.ok) {
-      const auth = (await refreshed.json()) as AuthResponse;
+      const auth = await readJsonBody<AuthResponse>(refreshed);
       if (auth.token) {
         if (isNativePlatform && auth.user) {
           await saveAuthSession(auth);
@@ -144,23 +199,12 @@ async function request<T>(
   }
 
   if (!response.ok) {
-    let message = "Request failed";
-    try {
-      const body = await response.json();
-      message = body.message || body.error || message;
-      if (Array.isArray(body.message)) message = body.message.join(", ");
-    } catch {
-      const text = await response.text().catch(() => "");
-      if (text) message = text;
-    }
-    throw new ApiError(
-      typeof message === "string" ? message : "Request failed",
-      response.status,
-    );
+    const message = await readHttpErrorMessage(response);
+    throw new ApiError(message, response.status);
   }
 
   if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  return readJsonBody<T>(response);
 }
 
 export interface AuthUser {

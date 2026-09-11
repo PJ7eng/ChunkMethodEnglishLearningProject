@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { App } from "@capacitor/app";
 import { isNativePlatform } from "./platform";
 import {
   resolveNativeBackAction,
@@ -45,41 +46,41 @@ export function useNativeBackButton(options: {
     let cancelled = false;
     let handle: { remove: () => Promise<void> } | undefined;
 
-    void import("@capacitor/app").then(async ({ App }) => {
-      if (cancelled) return;
-      handle = await App.addListener("backButton", ({ canGoBack }) => {
-        const action = resolveNativeBackAction({
-          overlay,
-          tab,
-          isLoggedIn,
-          authMode,
-          isAdminPath,
-        });
-        switch (action.type) {
-          case "close-admin":
-            window.history.pushState({}, "", "/");
-            setIsAdminPath(false);
-            return;
-          case "close-overlay":
-            setOverlay(null);
-            return;
-          case "switch-auth":
-            setAuthMode("login");
-            return;
-          case "go-home":
-            setTab("home");
-            return;
-          case "leave-app":
-            if (canGoBack) {
-              window.history.back();
-              return;
-            }
-            void App.minimizeApp();
-        }
+    void App.addListener("backButton", ({ canGoBack }) => {
+      const action = resolveNativeBackAction({
+        overlay,
+        tab,
+        isLoggedIn,
+        authMode,
+        isAdminPath,
       });
-      if (cancelled) {
-        await handle.remove();
+      switch (action.type) {
+        case "close-admin":
+          window.history.pushState({}, "", "/");
+          setIsAdminPath(false);
+          return;
+        case "close-overlay":
+          setOverlay(null);
+          return;
+        case "switch-auth":
+          setAuthMode("login");
+          return;
+        case "go-home":
+          setTab("home");
+          return;
+        case "leave-app":
+          if (canGoBack) {
+            window.history.back();
+            return;
+          }
+          void App.minimizeApp();
       }
+    }).then((listener) => {
+      if (cancelled) {
+        void listener.remove();
+        return;
+      }
+      handle = listener;
     });
 
     return () => {

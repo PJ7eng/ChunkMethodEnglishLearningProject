@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  getRandomChunk,
   getTodayProgress,
   loginUser,
   restoreSessionWithRefresh,
+  userFacingError,
   validateEmail,
   validatePassword,
 } from "./api";
@@ -133,5 +135,32 @@ describe("frontend API contract", () => {
     await expect(getTodayProgress()).rejects.toMatchObject({
       kind: "network",
     });
+  });
+
+  it("maps HTML error pages to a learner-facing network error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response("<!DOCTYPE html><html><body>offline</body></html>", {
+          status: 200,
+          headers: { "Content-Type": "text/html" },
+        }),
+      ),
+    );
+
+    await expect(getRandomChunk()).rejects.toMatchObject({
+      kind: "network",
+      message: "無法連線至服務。請稍後再試。",
+    });
+  });
+
+  it("hides JSON parse internals from the UI copy", () => {
+    expect(
+      userFacingError(
+        new SyntaxError(
+          `Unexpected token '<', "<!DOCTYPE "... is not valid JSON`,
+        ),
+      ),
+    ).toBe("無法連線至服務。請稍後再試。");
   });
 });

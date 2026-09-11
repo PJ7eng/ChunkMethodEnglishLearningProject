@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { C } from '../../constants/designToken';
 import { LoginBtn, Input } from '../../components';
-import { registerUser, saveAuthSession, validateEmail, validatePassword } from '../../api';
+import { registerUser, saveAuthSession, userFacingError, validateEmail, validatePassword } from '../../api';
 import { AuthScreenProps } from '../../types/auth';
 
 interface RegisterProps {
@@ -52,7 +52,7 @@ export function RegisterScreen({
       await saveAuthSession(data);
       onAuthSuccess(data.token, data.user);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
+      setError(userFacingError(err, '無法註冊。請稍後再試。'));
     } finally {
       setLoading(false);
     }

@@ -1,14 +1,16 @@
 
   import { createRoot } from "react-dom/client";
   import { SecureStorage } from "@aparajita/capacitor-secure-storage";
+  import { TextToSpeech } from "@capacitor-community/text-to-speech";
   import App from "./app/App";
   import "./styles/index.css";
   import * as Sentry from "@sentry/react";
   import { isNativePlatform } from "./app/platform";
 
-  // Register the native plugin during startup. A delayed dynamic import can
+  // Register native plugins during startup. A delayed dynamic import can
   // hang forever waiting for a Capacitor callback that never fires.
   void SecureStorage;
+  void TextToSpeech;
 
   if (import.meta.env.VITE_SENTRY_DSN) {
     Sentry.init({

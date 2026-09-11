@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { Button, ProgressBar, FillBlankCard, BackButton } from "../../components";
+import { ActionError } from "../../components/ActionError";
 import {
   getReviewQueue,
   recordProgressAnswer,
+  userFacingError,
   type ChunkResponse,
 } from "../../api";
 import { C } from "../../constants/designToken";
@@ -21,28 +23,30 @@ export function ReviewScreen({ onBack }: ReviewScreenProps) {
   const [finished, setFinished] = useState(false);
   const [cardKey, setCardKey] = useState(0);
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        const items = await getReviewQueue();
-        setQueue(
-          items.map((c) => ({
-            ...c,
-            pinyin: c.pinyin || "",
-            examples: c.examples || [],
-            options: c.options || [],
-            needsReview: c.needsReview ?? true,
-            mastered: c.mastered ?? false,
-          })),
-        );
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load review");
-      } finally {
-        setLoading(false);
-      }
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      const items = await getReviewQueue();
+      setQueue(
+        items.map((c) => ({
+          ...c,
+          pinyin: c.pinyin || "",
+          examples: c.examples || [],
+          options: c.options || [],
+          needsReview: c.needsReview ?? true,
+          mastered: c.mastered ?? false,
+        })),
+      );
+    } catch (err) {
+      setError(userFacingError(err, "無法載入複習。請稍後再試。"));
+    } finally {
+      setLoading(false);
     }
-    load();
+  }
+
+  useEffect(() => {
+    void load();
   }, []);
 
   const chunk = queue[index];
@@ -52,8 +56,9 @@ export function ReviewScreen({ onBack }: ReviewScreenProps) {
     if (chunk) {
       try {
         await recordProgressAnswer(chunk.id, isCorrect);
-      } catch {
-        /* continue */
+      } catch (err) {
+        setError(userFacingError(err, "無法儲存進度。請稍後再試。"));
+        return;
       }
     }
     if (index + 1 >= total) {
@@ -125,7 +130,7 @@ export function ReviewScreen({ onBack }: ReviewScreenProps) {
       )}
 
       {error && (
-        <div style={{ color: C.red, fontWeight: 800, fontSize: 13 }}>{error}</div>
+        <ActionError message={error} onRetry={() => void load()} />
       )}
       {loading && (
         <div style={{ color: C.gray, fontWeight: 700 }}>Loading review...</div>

@@ -1,11 +1,50 @@
 # ChunkMaster 開發進度總結
 
-> **更新日期**：2026-09-09
+> **更新日期**：2026-09-11
 > **產品定位**：以 chunk（片語／語塊）為單位的英語學習 App  
-> **技術棧**：Frontend — React + Vite + TypeScript + PWA／Cloudflare Pages（學習 Web＋Admin）；Capacitor 8 Android（M2 Debug、M3 Keystore 已在模擬器與實機驗收）；Backend — NestJS + Prisma，本機 Docker Postgres／雲端 Neon；API 託管 Railway；LLM — DeepSeek Chat Completions（本機與雲端 Admin 均已接通）  
+> **技術棧**：Frontend — React + Vite + TypeScript + PWA／Cloudflare Pages（學習 Web＋Admin）；Capacitor 8 Android（M2 Debug、M3 Keystore、M4 實機 UX 大半已驗）；Backend — NestJS + Prisma，本機 Docker Postgres／雲端 Neon；API 託管 Railway；LLM — DeepSeek Chat Completions（本機與雲端 Admin 均已接通）；郵件 — Resend 已能寄出，驗證頁仍有 bug  
 > **發布目標**：私下分發 signed Android APK（獨立主畫面圖示）；Web 保留學習入口及 Admin 後台。不上架 Google Play。  
 > **發布身分（已定）**：Android application ID `com.pjfrank.chunkmaster`；主畫面顯示名稱 **ChunkMaster**。先用 Railway／Cloudflare Pages 預設 HTTPS，暫不買自訂網域。  
-> **當前階段**：[V1_PLAN.md](V1_PLAN.md) **M2、M3 已勾選**。下一主線是 **M4** 實機 UX／網路狀態。Resend 郵件流程仍為 M1 剩餘。Debug APK 不是給熟人的正式包。
+> **當前階段**：[V1_PLAN.md](V1_PLAN.md) **M2、M3 已勾選**。**M4 實機 UX 大半已過，因驗證信頁未勾里程碑**。下一刀是修好 `/verify-email`（不要一進頁就 POST），再勾 M4。然後 M5 內容／M6 signed APK。Debug APK 不是給熟人的正式包。
+
+---
+
+### 2026-09-11 — M4 實機 UX 大半驗收；驗證信仍擋勾選
+- 完成：
+  - 營運者確認 M4 多數門檻：360×640 到實機無擋操作；至少兩個 Android 版本；一台實機連續學約 30 分鐘無 crash；Home／Challenge／Review／Notes／Profile／Settings／Streak 走完；Settings 匯出與刪帳號可用。
+  - 返回鍵（先回 Home）、鍵盤彈出可操作、safe area 無問題。
+  - 離線：登入／Profile 原已有中文錯誤。Home／Learned／Mastered／Notes 不再把 `Unexpected token '<'...JSON` 丟給使用者；`api.ts` 把 HTML／壞 JSON 映射為離線／無法連線；各學習頁有「重試」。Challenge／Review 存進度失敗會停下，不假裝成功。
+  - Library 手機不再顯示誤導的「Practice this chunk」。Native 用 `@capacitor-community/text-to-speech` 8.0.2，按鈕為 Hear phrase。
+  - 前景恢復時 native 再打 `/auth/me`（網路失敗不清 Keystore）。`@capacitor/app` 改靜態 import。
+  - Resend：Railway 已設 `RESEND_API_KEY`。`EMAIL_FROM` 必須是 Resend 允許的地址（測試用 `ChunkMaster <beth.t@example.com>`）；預設 `noreply@example.com` 會 403。**忘記密碼真實驗證通過**。
+- 修改文件（M4 程式，2026-09-10）：
+  - `Frontend/src/app/api.ts`、`api.test.ts`、`phraseSpeech.ts`、`phraseSpeech.test.ts`
+  - `Frontend/src/app/components/ActionError.tsx`
+  - `Frontend/src/app/pages/Home|Library|Note|Challenge|Review|Auth|Settings`
+  - `Frontend/src/app/App.tsx`、`useNativeBackButton.ts`、`main.tsx`
+  - `Frontend/package.json`（TTS plugin）
+  - `docs/progress.md`、`docs/V1_PLAN.md`、`docs/README.md`、`docs/TODO.md`
+- 驗證命令與結果：
+  - Frontend typecheck；Vitest 23／23。
+  - `npm run android:sync` 註冊 3 個 plugin：secure-storage、text-to-speech、app。須 Android Studio Rebuild／Run。
+  - 營運者實機確認離線人話、Hear phrase、學習走查（本筆記為驗收紀錄）。
+- Artifact／URL：
+  - 本機 Debug。無 signed APK。
+- 未完成或阻礙（**下一任 Agent 先做這個**）：
+  - 點驗證信「Verify your ChunkMaster email」→ Pages 顯示 `Verification token is invalid or expired`。忘記密碼同一套寄信卻成功。
+  - 根因：`AccountActionScreen` 一進 `/verify-email` 就 `useEffect` POST 消耗 token。Gmail／掃描器預覽會先用掉；使用者再點就失敗。重設密碼要按按鈕才消耗，故能過。
+  - 註冊流程：先寫 User 再寄信。Resend 403 時前端顯示註冊失敗，但帳已在 Neon。不要再註冊同一信箱。
+  - `REQUIRE_EMAIL_VERIFICATION` 仍應為 false，直到驗證頁修好並用新信箱走通。
+  - 覆蓋安裝（不卸載直接 Run 新包仍登入）營運者未回報。Access 過期後未回到登入頁見 `TODO.md`。
+  - 無「重寄驗證信」API。
+- 給下一個 Agent 的已知陷阱：
+  - 修驗證：頁面改「確認驗證信箱」按鈕，不要 mount 就 POST。後端 `verifyEmail` 改冪等：token 已用且該 user 已驗證 → 回成功。可選：重寄驗證信。
+  - 不要 `await SecureStorage`／`TextToSpeech` 插件物件。不要把 refresh 存 Preferences／localStorage。
+  - `EMAIL_FROM` 必須是 Resend 驗證過的 From；測試只能寄到 Resend 帳號信箱。不要把 API key 寫進 Frontend 或 Git。
+  - 不要改 `appId`。不要對 Neon seed。不要開始 signed APK（M6）。
+  - Token／mail key 不得寫進 Logcat、文件、commit。
+- 下一步（見第六節）：
+  - 修好驗證頁與冪等 API → 新信箱真實驗證 → 再勾 M4。可並行 Admin 審內容。
 
 ---
 
@@ -451,13 +490,15 @@ flowchart LR
   GenAPI --> DeepSeek[DeepSeek Chat Completions]
 ```
 
-**一句話**：本機與雲端學習閉環、Admin 審核、獨立圖示 Debug App、M3 Keystore 殺行程仍登入均已打通。尚無 signed APK。
+**一句話**：學習閉環、Admin、Debug App、Keystore、M4 實機 UX／離線／TTS 已打通。驗證信頁仍會誤報 token 過期；尚無 signed APK。
 
 ---
 
 ## 四、工程驗證現況
 
-2026-09-09 M3：Keystore refresh 已接並在模擬器＋實機驗收通過（殺行程仍登入、登出不殘留、token 不進 Logcat）。Vitest 19／19。啟動卡 Loading 的 `SecureStorage.then` 已修。
+2026-09-11 M4：營運者確認小螢幕、兩版本 Android、30 分鐘學習、全流程＋匯出／刪帳、離線人話、Hear phrase。Vitest 23／23。驗證信一開頁就 POST，點信顯示 token 過期；忘記密碼已通。M4 未勾。
+
+2026-09-09 M3：Keystore refresh 已接並在模擬器＋實機驗收通過（殺行程仍登入、登出不殘留、token 不進 Logcat）。啟動卡 Loading 的 `SecureStorage.then` 已修。
 
 2026-09-09 Android：營運者確認 M2 全過——Android Studio Debug 於模擬器與實機可安裝啟動；獨立 ChunkMaster 圖示；連 Railway HTTPS；無 Admin；冷啟動／前後台／旋轉／返回不白屏。
 
@@ -485,11 +526,11 @@ flowchart LR
 
 ### 1. V1 發布工作
 - ~~確認 application ID、App 顯示名稱、先用平台 HTTPS~~：已定 `com.pjfrank.chunkmaster`／ChunkMaster／Railway＋Pages 預設網址。支援聯絡方式仍未定稿
-- ~~Neon＋Railway＋Cloudflare Pages＋DeepSeek 雲端 secret~~：已部署並實測。尚未：Resend、Sentry 雲端、第二套 production 與自訂網域
-- ~~Capacitor Android 工程、獨立圖示、Debug 模擬器＋實機、Keystore 殺行程仍登入~~：M2／M3 已驗收。下一主線 M4 實機 UX／網路狀態
+- ~~Neon＋Railway＋Cloudflare Pages＋DeepSeek 雲端 secret~~：已部署並實測。Resend 已能寄信（忘記密碼已通）；驗證頁仍 bug。尚未：強制驗證、Neon 備份、Sentry 雲端、自訂網域
+- ~~Capacitor Android、獨立圖示、Keystore、M4 大半實機 UX~~：M2／M3 已勾。M4 差驗證信頁才勾。下一刀修 `/verify-email`
 - 建立 signed release APK、固定 keystore、versionCode 遞增及給熟人的安裝／升級說明
 - **本機與雲端生成管線已通**；尚需以 Admin 人工審核並累積首批 300–500 個 chunks。分發環境不得外洩未審內容
-- 在實機完成核心流程與內容品質修正
+- ~~在實機完成核心學習流程與匯出／刪帳~~：M4 已走查。差驗證信頁才勾 M4
 - 執行 Neon 備份還原及應用回滾演練；更新 [DEPLOYMENT.md](DEPLOYMENT.md) 真實網址（勿把私有連結寫進公開 repo 若營運者不願公開）
 - 補齊給受邀者的隱私、條款、支援與刪除說明；不填 Play Data safety 或 Store listing
 - 可選：卡住的 `running` job 自動回收；Admin 編輯改為表單而非 `window.prompt`；待審頁自動刷新
@@ -512,10 +553,10 @@ flowchart LR
 
 ## 六、下一階段衝刺焦點
 
-1. **不要重做** LLM、Admin 表單、雲端三件套、Capacitor 工程／圖示、Keystore 安全儲存，或改 `appId`。不要把 refresh token 改存 Preferences／localStorage。不要 `await SecureStorage`。
-2. 進入 **M4**：實機 UX（鍵盤、safe area、離線／弱網）、學習／Challenge／Review／Notes 走查。Settings 未實作的提醒／haptic 不得顯示為可用。
-3. 可並行：雲端 `/admin` 生成並人工核准，累積 300–500。不要對 Neon 跑 seed。
-4. Debug APK 不是給熟人的正式包。signed APK 屬 **M6**。
-5. M1 收尾可後補：Resend＋驗證信、Neon 備份還原、DEPLOYMENT 實網址、支援信箱。
+1. **不要重做** LLM、Admin 表單、雲端三件套、Capacitor 圖示、Keystore，或改 `appId`。不要 `await` Capacitor plugin 物件。不要把 refresh 存 Preferences／localStorage。
+2. **先修驗證信（擋 M4 勾選）**：`AccountActionScreen` 改確認按鈕，不要 `useEffect` 一進頁就 `verifyEmail`。`AuthService.verifyEmail` 冪等（已用且 user 已驗證 → 成功）。可選重寄驗證信。用**新信箱**重測（舊帳可能已有殘留 token）。`REQUIRE_EMAIL_VERIFICATION` 修好前保持 false。`EMAIL_FROM` 必須是 Resend 允許的 From。
+3. 驗證通了再勾 M4。覆蓋安裝若未測：不卸載、Android Studio 再 Run，確認仍登入。Access 過期後回到登入頁見 `TODO.md`（可後補）。
+4. 可並行：雲端 `/admin` 生成並人工核准，累積 300–500。不要對 Neon seed。
+5. Debug 不是給熟人的包。signed APK 屬 **M6**。M1 仍可後補：強制驗證、Neon 備份、DEPLOYMENT 實網址、支援信箱。
 
 分發給他人前不得跳過人工內容審核、資料備份、權限驗證及回滾演練。

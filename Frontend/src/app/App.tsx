@@ -26,8 +26,9 @@ import {
 } from "./api";
 import { authStorage } from "./authStorage";
 import { C } from "./constants/designToken";
-import { isAdminEnabled } from "./platform";
+import { isAdminEnabled, isNativePlatform } from "./platform";
 import { useNativeBackButton } from "./useNativeBackButton";
+import { App as CapacitorApp } from "@capacitor/app";
 
 const AdminScreen = isAdminEnabled
   ? lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminScreen })))
@@ -135,6 +136,26 @@ export default function App() {
       window.clearTimeout(bootTimeout);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isNativePlatform || !token) return;
+    let cancelled = false;
+    let handle: { remove: () => Promise<void> } | undefined;
+    void CapacitorApp.addListener("appStateChange", ({ isActive }) => {
+      if (!isActive) return;
+      void getCurrentUser().catch(() => undefined);
+    }).then((listener) => {
+      if (cancelled) {
+        void listener.remove();
+        return;
+      }
+      handle = listener;
+    });
+    return () => {
+      cancelled = true;
+      void handle?.remove();
+    };
+  }, [token]);
 
   const handleAuthSuccess = (newToken: string, authUser: any) => {
     setToken(newToken);

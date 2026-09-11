@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { C } from '../../constants/designToken';
 import { LoginBtn, Input } from '../../components';
-import { loginUser, requestPasswordReset, saveAuthSession, validateEmail } from '../../api';
+import { loginUser, requestPasswordReset, saveAuthSession, userFacingError, validateEmail } from '../../api';
 import { AuthScreenProps } from '../../types/auth';
 
 export interface LoginProps {
@@ -39,7 +39,7 @@ export function LoginScreen({
       await saveAuthSession(data);
       onAuthSuccess(data.token, data.user);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(userFacingError(err, '無法登入。請稍後再試。'));
     } finally {
       setLoading(false);
     }
@@ -57,7 +57,7 @@ export function LoginScreen({
       const result = await requestPasswordReset(email);
       setInfo(result.message);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '無法寄送重設郵件');
+      setError(userFacingError(err, '無法寄送重設郵件'));
     } finally {
       setLoading(false);
     }

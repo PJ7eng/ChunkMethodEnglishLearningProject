@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card, Label, Toggle, Button, BackButton } from "../../components";
-import { deleteAccount, exportAccount, getPreferences, updatePreferences, type PreferencesResponse } from "../../api";
+import { deleteAccount, exportAccount, getPreferences, updatePreferences, userFacingError, type PreferencesResponse } from "../../api";
 import { C } from "../../constants/designToken";
 
 export interface SettingsScreenProps {
@@ -28,9 +28,7 @@ export function SettingsScreen({
         onPreferencesChange?.(p);
       })
       .catch((error) =>
-        setPreferenceMessage(
-          error instanceof Error ? error.message : "無法載入偏好設定",
-        ),
+        setPreferenceMessage(userFacingError(error, "無法載入偏好設定")),
       );
   }, []);
 
@@ -43,9 +41,7 @@ export function SettingsScreen({
       setAutoNext(next.autoNextEnabled);
       onPreferencesChange?.(next);
     } catch (error) {
-      setPreferenceMessage(
-        error instanceof Error ? error.message : "無法儲存偏好設定",
-      );
+      setPreferenceMessage(userFacingError(error, "無法儲存偏好設定"));
     } finally {
       setSaving(false);
     }
@@ -62,7 +58,7 @@ export function SettingsScreen({
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      setAccountMessage(error instanceof Error ? error.message : "匯出帳號失敗");
+      setAccountMessage(userFacingError(error, "匯出帳號失敗"));
     }
   }
 
@@ -73,7 +69,7 @@ export function SettingsScreen({
       await deleteAccount(password);
       onLogout();
     } catch (error) {
-      setAccountMessage(error instanceof Error ? error.message : "刪除帳號失敗");
+      setAccountMessage(userFacingError(error, "刪除帳號失敗"));
     }
   }
 
