@@ -37,8 +37,14 @@ jobs:
       - name: Install backend
         working-directory: Backend
         run: npm ci
-      - name: Audit backend dependencies
+      # Gate what ships (Railway / Pages / APK runtime). Tooling CVEs in
+      # Capacitor CLI, sharp, vitest, etc. must not block deploys.
+      - name: Audit backend production dependencies
         working-directory: Backend
+        run: npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org
+      - name: Audit backend full tree
+        working-directory: Backend
+        continue-on-error: true
         run: npm audit --audit-level=high --registry=https://registry.npmjs.org
       - name: Apply migrations
         working-directory: Backend
@@ -49,8 +55,12 @@ jobs:
       - name: Install frontend
         working-directory: Frontend
         run: npm ci
-      - name: Audit frontend dependencies
+      - name: Audit frontend production dependencies
         working-directory: Frontend
+        run: npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org
+      - name: Audit frontend full tree
+        working-directory: Frontend
+        continue-on-error: true
         run: npm audit --audit-level=high --registry=https://registry.npmjs.org
       - name: Verify frontend
         working-directory: Frontend

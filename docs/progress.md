@@ -531,6 +531,8 @@ flowchart LR
 
 ## 四、工程驗證現況
 
+2026-09-11 CI：前端 full-tree audit 因 Capacitor CLI／sharp／vitest 工具鏈 CVE 阻擋 Railway。已改為 production `--omit=dev` 才擋部署；full tree 改非阻擋。vitest 4.1.11；overrides 釘 `tar` 7.5.22、`sharp` 0.35.4、`uuid` 11.1.1。本機 full＋prod audit 皆 0 high。
+
 2026-09-11 驗證信：進頁不再 POST；後端冪等；可重寄。Backend 36／36；Frontend Vitest 25／25；Playwright 確認按鈕才消耗 token。真實驗收待營運者新信箱。M4 未勾。
 
 2026-09-10～11 M4 UX：營運者確認小螢幕、兩版本 Android、30 分鐘學習、全流程＋匯出／刪帳、離線人話、Hear phrase。忘記密碼已通。

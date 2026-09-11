@@ -31,6 +31,17 @@ Never copy production user data into development.
 
 ## Release
 
+Railway is set to Wait for CI. A failed GitHub Actions run will **not**
+deploy. You do not need to press Redeploy for a new commit: push to `main`,
+wait until CI is green, then Railway builds from that SHA. Use Redeploy only
+to retry the **same** already-deployed commit (for example after changing
+Variables). Cloudflare Pages likewise rebuilds from the GitHub push.
+
+The blocking CI audit is production dependencies only (`npm audit --omit=dev`).
+Tooling CVEs (Capacitor CLI, sharp, vitest) are reported but must not block
+ship. Keep `overrides` in `package.json` so nested packages cannot roll back
+to a known-bad version.
+
 1. Confirm CI is green and record the image/commit SHA.
 2. Take an on-demand Neon backup and note the restore point.
 3. Deploy the API image. Its startup command runs `prisma migrate deploy`.

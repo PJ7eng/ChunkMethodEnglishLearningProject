@@ -96,7 +96,7 @@
     "tailwindcss": "4.1.12",
     "typescript": "^7.0.2",
     "vite": "^6.4.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "peerDependencies": {
     "react": "18.3.1",
@@ -111,12 +111,18 @@
     }
   },
   "overrides": {
-    "browserslist": "^4.28.9"
+    "browserslist": "^4.28.9",
+    "tar": "^7.5.22",
+    "sharp": "^0.35.4",
+    "uuid": "^11.1.1"
   },
   "pnpm": {
     "overrides": {
       "vite": "6.4.3",
-      "browserslist": "^4.28.9"
+      "browserslist": "^4.28.9",
+      "tar": "^7.5.22",
+      "sharp": "^0.35.4",
+      "uuid": "^11.1.1"
     }
   }
 }
