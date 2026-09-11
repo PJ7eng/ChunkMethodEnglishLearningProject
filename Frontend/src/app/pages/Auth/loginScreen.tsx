@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { C } from '../../constants/designToken';
 import { LoginBtn, Input } from '../../components';
-import { loginUser, requestPasswordReset, saveAuthSession, userFacingError, validateEmail } from '../../api';
+import { loginUser, requestPasswordReset, resendVerificationEmail, saveAuthSession, userFacingError, validateEmail } from '../../api';
 import { AuthScreenProps } from '../../types/auth';
 
 export interface LoginProps {
@@ -53,11 +53,31 @@ export function LoginScreen({
     }
     setLoading(true);
     setError(null);
+    setInfo(null);
     try {
       const result = await requestPasswordReset(email);
       setInfo(result.message);
     } catch (err) {
       setError(userFacingError(err, '無法寄送重設郵件'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    const emailErr = validateEmail(email);
+    if (emailErr) {
+      setError('請先輸入有效的電子郵件。');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setInfo(null);
+    try {
+      await resendVerificationEmail(email);
+      setInfo('若此信箱尚未驗證，我們已寄出新的驗證信。');
+    } catch (err) {
+      setError(userFacingError(err, '無法寄送驗證信'));
     } finally {
       setLoading(false);
     }
@@ -139,6 +159,9 @@ export function LoginScreen({
           </LoginBtn>
           <LoginBtn variant="ghost" fullWidth onClick={handleForgotPassword} disabled={loading}>
             忘記密碼
+          </LoginBtn>
+          <LoginBtn variant="ghost" fullWidth onClick={handleResendVerification} disabled={loading}>
+            重寄驗證信
           </LoginBtn>
         </div>
       </div>

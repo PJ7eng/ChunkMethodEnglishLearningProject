@@ -65,3 +65,20 @@ test('logout accepts a body token and clears both session cookies', async () => 
     ['chunk_access_token', 'chunk_refresh_token'],
   );
 });
+
+test('resendVerification forwards the email to the auth service', async () => {
+  let receivedEmail: string | undefined;
+  const controller = new AuthController({
+    resendVerificationEmail: async (email: string) => {
+      receivedEmail = email;
+      return { success: true, message: 'ok' };
+    },
+  } as any);
+
+  const result = await controller.resendVerification({
+    email: 'learner@example.com',
+  });
+
+  assert.equal(receivedEmail, 'learner@example.com');
+  assert.deepEqual(result, { success: true, message: 'ok' });
+});

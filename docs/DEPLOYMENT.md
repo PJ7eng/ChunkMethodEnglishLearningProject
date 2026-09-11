@@ -16,7 +16,8 @@ Never copy production user data into development.
    restore and retain backups for at least 14 days.
 2. Create a Railway service from `Backend/Dockerfile`. Add every variable in
    `Backend/.env.example`; production must use a random `JWT_SECRET` of at least
-   32 bytes and `REQUIRE_EMAIL_VERIFICATION=true`.
+   32 bytes. Keep `REQUIRE_EMAIL_VERIFICATION=false` until the confirm-button
+   verify-email flow is proven with a real mailbox; then set it to `true`.
 3. Create a Railway worker from the same image when generation volume requires
    dedicated capacity. V1 currently dispatches jobs in the API process, so keep
    one API replica until the worker uses a durable claim loop.

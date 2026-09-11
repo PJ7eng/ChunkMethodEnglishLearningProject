@@ -20,7 +20,7 @@
 | 學習端 | React、Vite、TypeScript |
 | API | NestJS、Prisma、PostgreSQL |
 | 教材生成 | DeepSeek（結構化輸出 + 去重 + 審核流） |
-| 現況 | Web 與 Android Debug 可學。Keystore 殺行程仍登入。M4 UX／離線／TTS 已實機過；驗證信頁仍會誤報 token 過期。signed APK 尚未產出。不上架 Google Play |
+| 現況 | Web 與 Android Debug 可學。Keystore 殺行程仍登入。M4 UX／離線／TTS 已實機過；驗證頁改為按鈕才 POST，待新信箱真實驗收。signed APK 尚未產出。不上架 Google Play |
 
 ## 本地開發
 

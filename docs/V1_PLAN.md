@@ -1,9 +1,9 @@
 # ChunkMaster V1：私下分發 Android APK 計劃
 
-> 更新日期：2026-09-11  
+> 更新日期：2026-09-11 
 > 最終目標：學習者在主畫面看到獨立 ChunkMaster 圖示，安裝簽過名的 Android APK；以側載私下分發給自己與熟人，不上架 Google Play。  
 > 技術路徑：現有 React/Vite 學習者端 + Capacitor Android；NestJS API 部署到 Railway；PostgreSQL 使用 Neon；Admin 維持 Web 後台。  
-> 當前狀態：M1 雲端核心已通。**M2、M3 已驗收**。**M4 實機 UX 大半已過**（差驗證信頁，未勾里程碑）。忘記密碼 Resend 已通。下一刀修 `/verify-email`。signed APK 屬 M6。  
+> 當前狀態：M1 雲端核心已通。**M2、M3 已驗收**。**M4 實機 UX 大半已過**。驗證頁程式已改為按鈕才 POST，待營運者新信箱真實驗收後勾 M4。忘記密碼 Resend 已通。signed APK 屬 M6。  
 > 本文件是後續 Agent 的主要執行路線。實際進度與驗證結果同步記錄到 [README.md](README.md) 與 [progress.md](progress.md)。
 
 ## 1. 不可偏離的發布目標
@@ -82,7 +82,7 @@ flowchart LR
 
 ### 尚未完成
 
-- M4 驗證信：`/verify-email` 一載入就 POST，掃描器會先消耗 token；忘記密碼已通。修好前不要勾 M4、不要開 `REQUIRE_EMAIL_VERIFICATION=true`。
+- M4 驗證信：程式已改為確認按鈕才 POST；`verifyEmail` 冪等；可重寄。尚未用新信箱真實驗收，不要勾 M4、不要開 `REQUIRE_EMAIL_VERIFICATION=true`。
 - 覆蓋安裝仍登入：營運者未回報。
 - 沒有 versionCode 發布流程或 release keystore（M6）。
 - Settings 未顯示提醒／haptic；不要把它們做成假開關。
@@ -439,11 +439,11 @@ Tag／manual release：
 
 ## 15. 下一個 Context 的明確起點
 
-下一步是 **修好驗證信再勾 M4**，不是重寫學習 UX，也不是 signed APK：
+下一步是 **用新信箱真實驗收驗證信再勾 M4**，不是重寫學習 UX，也不是 signed APK：
 
-1. 不要改 `appId`。不要 `await SecureStorage`／`TextToSpeech` 插件物件。不要把 refresh 存 Preferences／localStorage。
-2. `Frontend/src/app/pages/Auth/accountActionScreen.tsx`：驗證改為按鈕才 POST `/auth/verify-email`。`Backend/src/auth/auth.service.ts` `verifyEmail`：已用且 user 已驗證則回成功。可選重寄驗證信。
-3. Railway：`EMAIL_FROM` 必須是 Resend 允許的 From（測試 `beth.t@example.com`）。修好前 `REQUIRE_EMAIL_VERIFICATION=false`。用新信箱測；註冊若寄信 403，User 可能已寫入 Neon。
+1. 不要改 `appId`。不要 `await SecureStorage`／`TextToSpeech` 插件物件。不要把 refresh 存 Preferences／localStorage。不要改回 mount 就 POST。
+2. 驗證頁／冪等 API／重寄 API 已寫好。部署 Railway＋Pages 後，用**新信箱**走：註冊 → 信 → 頁面顯示「確認驗證信箱」（尚未 POST）→ 按鈕驗證 → 登入。
+3. Railway：`EMAIL_FROM` 必須是 Resend 允許的 From（測試 `beth.t@example.com`）。修好並真實驗收前 `REQUIRE_EMAIL_VERIFICATION=false`。註冊若寄信 403，User 可能已寫入 Neon；改用登入頁「重寄驗證信」。
 4. 驗證＋覆蓋安裝過了才勾 M4。可並行 `/admin` 審核 300–500。不要對 Neon seed。M6 才 signed APK。
 
 application ID 已定為 `com.pjfrank.chunkmaster`，不得更改。

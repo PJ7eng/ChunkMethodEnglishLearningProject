@@ -53,6 +53,19 @@ async function mockApi(page: Page) {
       signedIn = false;
       return json({ success: true });
     }
+    if (path === "/auth/verify-email") {
+      return json({ success: true, message: "Email verified" });
+    }
+    if (path === "/auth/resend-verification") {
+      return json({
+        success: true,
+        message:
+          "If the account exists and still needs verification, a new email has been sent.",
+      });
+    }
+    if (path === "/auth/reset-password") {
+      return json({ success: true, message: "Password updated" });
+    }
     if (path === "/auth/account/export") {
       return json({ exportedAt: "2026-08-17T00:00:00.000Z", user });
     }
@@ -154,6 +167,27 @@ test("registration and login", async ({ page }) => {
   await page.getByPlaceholder("輸入密碼").fill("secure-pass");
   await page.getByRole("button", { name: "登錄", exact: true }).click();
   await expect(page.getByText("Ready to learn?")).toBeVisible();
+});
+
+test("verify email waits for confirm button", async ({ page }) => {
+  const posts: string[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      request.url().includes("/auth/verify-email")
+    ) {
+      posts.push(request.url());
+    }
+  });
+
+  await page.goto("/verify-email?token=preview-token");
+  await expect(page.getByRole("heading", { name: "驗證電子郵件" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "確認驗證信箱" })).toBeVisible();
+  expect(posts).toHaveLength(0);
+
+  await page.getByRole("button", { name: "確認驗證信箱" }).click();
+  await expect(page.getByText("信箱已驗證。可以返回登入。")).toBeVisible();
+  expect(posts).toHaveLength(1);
 });
 
 test("learning and due review", async ({ page }) => {

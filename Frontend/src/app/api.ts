@@ -362,6 +362,13 @@ export async function verifyEmail(token: string) {
   });
 }
 
+export async function resendVerificationEmail(email: string) {
+  return request<{ success: boolean; message: string }>("/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
+  });
+}
+
 export async function exportAccount() {
   return request<{ exportedAt: string; user: unknown }>("/auth/account/export");
 }

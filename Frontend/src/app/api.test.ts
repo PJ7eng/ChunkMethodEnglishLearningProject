@@ -3,10 +3,12 @@ import {
   getRandomChunk,
   getTodayProgress,
   loginUser,
+  resendVerificationEmail,
   restoreSessionWithRefresh,
   userFacingError,
   validateEmail,
   validatePassword,
+  verifyEmail,
 } from "./api";
 
 function memoryStorage() {
@@ -152,6 +154,40 @@ describe("frontend API contract", () => {
       kind: "network",
       message: "無法連線至服務。請稍後再試。",
     });
+  });
+
+  it("posts verify-email only when verifyEmail is called", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true, message: "Email verified" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await verifyEmail("preview-token");
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("/auth/verify-email");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ token: "preview-token" });
+  });
+
+  it("normalizes resend-verification email", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true, message: "ok" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await resendVerificationEmail(" Learner@Example.COM ");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/auth/resend-verification");
+    expect(JSON.parse(init.body)).toEqual({ email: "learner@example.com" });
   });
 
   it("hides JSON parse internals from the UI copy", () => {

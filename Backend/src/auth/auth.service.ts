@@ -123,12 +123,35 @@ export class AuthService {
   }
 
   async verifyEmail(token: string) {
-    const record = await this.prisma.emailVerificationToken.findUnique({
-      where: { tokenHash: this.hashToken(token) },
-    });
-    if (!record || record.usedAt || record.expiresAt <= new Date()) {
+    if (!token?.trim()) {
       throw new BadRequestException('Verification token is invalid or expired');
     }
+    const record = await this.prisma.emailVerificationToken.findUnique({
+      where: { tokenHash: this.hashToken(token) },
+      include: { user: true },
+    });
+    if (!record) {
+      throw new BadRequestException('Verification token is invalid or expired');
+    }
+
+    const alreadyVerified = Boolean(record.user?.emailVerifiedAt);
+    if (record.usedAt) {
+      if (alreadyVerified) {
+        return { success: true, message: 'Email verified' };
+      }
+      throw new BadRequestException('Verification token is invalid or expired');
+    }
+    if (record.expiresAt <= new Date()) {
+      throw new BadRequestException('Verification token is invalid or expired');
+    }
+    if (alreadyVerified) {
+      await this.prisma.emailVerificationToken.update({
+        where: { id: record.id },
+        data: { usedAt: new Date() },
+      });
+      return { success: true, message: 'Email verified' };
+    }
+
     await this.prisma.$transaction([
       this.prisma.emailVerificationToken.update({
         where: { id: record.id },
@@ -140,6 +163,39 @@ export class AuthService {
       }),
     ]);
     return { success: true, message: 'Email verified' };
+  }
+
+  async resendVerificationEmail(email: string) {
+    const generic = {
+      success: true,
+      message:
+        'If the account exists and still needs verification, a new email has been sent.',
+    };
+    const normalized = email?.trim().toLowerCase();
+    if (!normalized) {
+      return generic;
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalized },
+    });
+    if (!user || user.emailVerifiedAt) {
+      return generic;
+    }
+
+    const token = await this.issueVerificationToken(user.id);
+    await this.sendAccountEmail('verify', user.email, token);
+    await this.prisma.emailVerificationToken.updateMany({
+      where: {
+        userId: user.id,
+        usedAt: null,
+        tokenHash: { not: this.hashToken(token) },
+      },
+      data: { usedAt: new Date() },
+    });
+    return {
+      ...generic,
+      ...(process.env.NODE_ENV !== 'production' ? { verificationToken: token } : {}),
+    };
   }
 
   async requestPasswordReset(email: string) {
